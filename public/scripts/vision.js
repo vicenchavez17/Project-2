@@ -1,4 +1,4 @@
-const API_KEY = 'AIzaSyAUArMp6N3bRIaPfaGdB687MAHsxhPD_Z8';
+const API_KEY = 'API Key Here';
 
 document.getElementById('analyzeBtn').onclick = async() => {
   const file = document.getElementById('imageUpload').files[0];
