@@ -15,7 +15,9 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "multer": "^2.0.2",
+    "ntc": "^0.0.1",
     "path": "^0.12.7",
+    "sharp": "^0.34.5",
     "url": "^0.11.4"
   },
   "devDependencies": {
