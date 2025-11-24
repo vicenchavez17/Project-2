@@ -7,10 +7,37 @@
 
   <body>
     
-    <form action='/generate' method='POST' encType='multipart/form-data'>
+    <form id='uploadForm'>
         <input type='file' name='image' accept='image/*' required>
         <input type='submit' value='Analyze Image'>
     </form>
+    <div id="status"></div>
+
+    <script>
+      document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault(); // Prevent page reload
+        
+        const formData = new FormData();
+        formData.append('image', e.target.image.files[0]);
+        
+        document.getElementById('status').textContent = 'Processing...';
+        
+        try {
+          const response = await fetch('/generate', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            document.getElementById('status').textContent = 'Success!';
+          } else {
+            document.getElementById('status').textContent = 'Error!';
+          }
+        } catch (error) {
+          document.getElementById('status').textContent = 'Failed: ' + error.message;
+        }
+      });
+    </script>
   </body>
 </html>
 
