@@ -29,12 +29,25 @@ const createVisionRequest = (imageBuffer, maxResults = 30) => ({
 
 const client = new vision.ImageAnnotatorClient();
 
+
+/**
+ * Converts RGB color values to hexadecimal format
+ * @param {number} r - Red value (0-255)
+ * @param {number} g - Green value (0-255)
+ * @param {number} b - Blue value (0-255)
+ * @returns {string} Hexadecimal color string (e.g., '#ff5733')
+ */
 function rgbToHex(r,g,b) {
   return '#' + r.toString(16).padStart(2,'0') 
     + g.toString(16).padStart(2,'0')
     + b.toString(16).padStart(2,'0');
 }
 
+/**
+ * Checks if an object name contains any apparel-related keywords
+ * @param {string} obj - Object name to check
+ * @returns {boolean} True if object is apparel-related, false otherwise
+ */
 function isApparel(obj) {
   const object = obj.toLowerCase();
 
@@ -43,6 +56,14 @@ function isApparel(obj) {
   );
 }
 
+/**
+ * Crops a specific object region from an image using bounding box coordinates
+ * @param {Buffer} imageBuffer - Original image buffer
+ * @param {Object} boundingPoly - Bounding polygon with normalized vertices
+ * @param {number} width - Image width in pixels
+ * @param {number} height - Image height in pixels
+ * @returns {Promise<Buffer>} Cropped image buffer
+ */
 async function cropObject(imageBuffer, boundingPoly, width, height) {
   const vertices = boundingPoly.normalizedVertices;
   const left = Math.floor(vertices[0].x * width);
@@ -55,6 +76,12 @@ async function cropObject(imageBuffer, boundingPoly, width, height) {
     .toBuffer();
 }
 
+
+/**
+ * Gets a detailed label for a cropped apparel item, filtering out generic/irrelevant labels
+ * @param {Buffer} croppedBuffer - Cropped image buffer of the apparel item
+ * @returns {Promise<string>} Specific apparel label or 'unknown'
+ */
 async function getDetailedLabel(croppedBuffer) {
   const [{ labelAnnotations }] = await client.labelDetection({
     image: { content: croppedBuffer }
@@ -74,7 +101,7 @@ async function getDetailedLabel(croppedBuffer) {
     //generic terms
     'sleeve', 'collar', 'button', 'fabric', 'textile', 'material', 'clothing', 'garment', 'wear',
     //body parts
-    'shoulder', 'neck', 'arm', 'hand', 'elbow', 'muscle', 'chest', 'torso',
+    'shoulder', 'neck', 'arm', 'hand', 'elbow', 'muscle', 'chest', 'torso', 'chin', 'eyes', 'cheek',
     //actions/poses
     'standing', 'sitting', 'walking', 'running'
   ];
@@ -85,6 +112,13 @@ async function getDetailedLabel(croppedBuffer) {
   return label?.description || 'unknown';
 }
 
+/**
+ * Extracts the dominant color name, rgb, and hex code from an image and returns its common name
+ * @param {Buffer} imageBuffer - Image buffer to analyze
+ * @returns {Promise<Object>} Object containing:
+ *   - colorName {string} - Common color name (e.g., 'Navy Blue', 'Forest Green')
+ *   - rgb {Object} - RGB color values {r, g, b}
+ *   - hex {string} - Hexadecimal color string (e.g., '#ff5733') */
 async function getColorData(imageBuffer) {
 
   const [{ imagePropertiesAnnotation }] = await client.imageProperties({
@@ -106,7 +140,11 @@ async function getColorData(imageBuffer) {
     hex: hex
   };
 }
-
+ /**
+ * Detects apparel objects in an image and extracts their labels and color data
+ * @param {Buffer} imageBuffer - Image buffer to analyze
+ * @returns {Promise<Array<Object>>} Array of apparel objects with label, colorName, rgb, and hex properties
+ */
 async function getObjects(imageBuffer) {
   const request = createVisionRequest(imageBuffer);
   const [result] = await client.objectLocalization(request);
