@@ -6,16 +6,23 @@ import vision from '@google-cloud/vision';
 import multer from 'multer';
 import sharp from 'sharp';
 import ntc from 'ntc';
-import { APPAREL_WHITE_LIST, CONFIG_PORT } from './config.js';
+import { APPAREL_WHITE_LIST, CATEGORIES, CONFIG_PORT } from './config.js';
+import aiplatform from '@google-cloud/aiplatform';
+
+const { PredictionServiceClient } = aiplatform.v1;
+const { helpers } = aiplatform;
 
 dotenv.config();
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || CONFIG_PORT || 3000;
+
+const aiClient = new PredictionServiceClient({
+  apiEndpoint: 'us-central1-aiplatform.googleapis.com'
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -136,6 +143,7 @@ async function getColorData(imageBuffer) {
  * @param {Buffer} imageBuffer - Image buffer to analyze
  * @returns {Promise<Array<Object>>} Array of apparel objects with label, colorName, rgb, and hex properties
  */
+
 async function getObjects(imageBuffer) {
   const request = createVisionRequest(imageBuffer);
   const [result] = await client.objectLocalization(request);
@@ -183,6 +191,91 @@ async function getObjects(imageBuffer) {
   return apparelData;
 }
 
+/**
+ * Finds the most similar apparel object based on user query
+ * @param {Array<Object>} apparelData - Array of detected apparel objects
+ * @param {string} userQuery - User's search query
+ * @returns {Object|null} Matching apparel object or first item if no match, null if empty
+ */function findClosestApparel(apparelData, userQuery) {
+  if (!userQuery || userQuery.trim() === '') {
+    return apparelData.length > 0 ? apparelData[0] : null;
+  }
+
+  const query = userQuery.toLowerCase();
+  
+  let targetCategory = null;
+  for (const [category, keywords] of Object.entries(CATEGORIES)) {
+    if (keywords.some(keyword => query.includes(keyword))) {
+      targetCategory = category;
+      break;
+    }
+  }
+  
+  //if no label found, return first object
+  if (!targetCategory) {
+    return apparelData.length > 0 ? apparelData[0] : null;
+  }
+  
+  const matches = apparelData.filter(item => {
+    const itemLabel = item.label.toLowerCase();
+    return CATEGORIES[targetCategory].some(keyword => itemLabel.includes(keyword));
+  });
+  
+  return matches.length > 0 ? matches[0] : apparelData[0];
+}
+
+/**
+ * Generates a product image using Vertex AI Imagen based on apparel data
+ * @param {Array<Object>} apparelData - Array of detected apparel objects
+ * @param {string} userQuery - User's search query to find matching apparel
+ * @returns {Promise<string>} Base64 encoded image string
+ */
+async function generateImage(apparelData, userQuery) {
+  const apparel = findClosestApparel(apparelData, userQuery);
+  
+  if (!apparel) {
+    throw new Error('No apparel found');
+  }
+
+  const imagePrompt = `A ${apparel.colorName} ${apparel.label} with the hex color ${apparel.hex} laid flat on a pure white background, product photography style.`;
+  console.log('Image prompt:', imagePrompt);
+
+  const projectID = process.env.GOOGLE_CLOUD_PROJECT;
+  const location = 'us-central1';
+  
+  const endpoint = `projects/${projectID}/locations/${location}/publishers/google/models/imagegeneration@006`;
+  
+  const instanceValue = helpers.toValue({ prompt: imagePrompt });
+  const parametersValue = helpers.toValue({ sampleCount: 1 });
+
+  const request = {
+    endpoint,
+    instances: [instanceValue],
+    parameters: parametersValue,
+  };
+
+  const [response] = await aiClient.predict(request);
+  
+  console.log('Full response:', JSON.stringify(response, null, 2));
+  console.log('Predictions:', response.predictions);
+  
+  if (response.predictions && response.predictions.length > 0) {
+    const prediction = response.predictions[0];
+    console.log('First prediction:', JSON.stringify(prediction, null, 2));
+    
+    if (prediction.structValue) {
+      return prediction.structValue.fields.bytesBase64Encoded.stringValue;
+    } else if (prediction.bytesBase64Encoded) {
+      return prediction.bytesBase64Encoded;
+    } else {
+      const decoded = helpers.fromValue(prediction);
+      console.log('Decoded prediction:', decoded);
+      return decoded.bytesBase64Encoded;
+    }
+  }
+  
+  throw new Error('No predictions returned');
+}
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req,res) => {
@@ -200,13 +293,17 @@ app.post('/recommend', upload.single('image'), async (req, res) => {
       console.log(`rgb: ${object.rgb.r}, ${object.rgb.g}, ${object.rgb.b}`);
       console.log(`hex: ${object.hex}`);
     }
-    res.sendStatus(200);
+
+    const userQuery = req.body.query || '';
+    const generatedImage = await generateImage(apparelData, userQuery);
+
+    res.json({ image: generatedImage });
   } catch (error) {
     console.log(error);
     console.log('ERROR CAUGHT /generate');
+    res.status(500).send('Error generating image');
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
