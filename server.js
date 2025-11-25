@@ -85,7 +85,7 @@ async function getDetailedLabel(croppedBuffer) {
   return label?.description || 'unknown';
 }
 
-async function getDominantColor(imageBuffer) {
+async function getColorData(imageBuffer) {
 
   const [{ imagePropertiesAnnotation }] = await client.imageProperties({
     image: { content: imageBuffer }
@@ -98,8 +98,13 @@ async function getDominantColor(imageBuffer) {
   const b = color.blue || 0;
 
   const hex = rgbToHex(r, g, b);
-  
-  return ntc.name(hex)[1];
+  const colorName = ntc.name(hex)[1];
+
+  return {
+    colorName: colorName,
+    rgb: {r, g, b},
+    hex: hex
+  };
 }
 
 async function getObjects(imageBuffer) {
@@ -128,20 +133,25 @@ async function getObjects(imageBuffer) {
   console.log(`Filtered to ${uniqueApparel.length} unique apparel items`);
   const { width, height } = await sharp(imageBuffer).metadata();
 
-  console.log('Filtered apparel items:');
-  apparelItems.forEach(obj => {
-    console.log(`  ${obj.name} (${obj.score})`);
-  });
+  const apparelData = [];
 
   for (const object of uniqueApparel) {
     const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
     const label = await getDetailedLabel(croppedBuffer);
-    const color = await getDominantColor(croppedBuffer);
+    const colorData = await getColorData(croppedBuffer);
 
-    console.log(`${color} ${label}`);
+    console.log(`${colorData.colorName} ${label}`);
+
+    apparelData.push({
+      label: label,
+      colorName: colorData.colorName,
+      rgb: colorData.rgb,
+      hex: colorData.hex
+    });
+
   }
 
-  return uniqueApparel; // TODO
+  return apparelData;
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -150,18 +160,25 @@ app.get('/', (req,res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/generate', upload.single('image'), async (req, res) => {
+app.post('/recommend', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('No image uploaded.');
   
-  // TODO
   try {
-    let objects = await getObjects(req.file.buffer);
+    let apparelData = await getObjects(req.file.buffer);
+    for (const object of apparelData) {
+      console.log(`label: ${object.label}`);
+      console.log(`colorName: ${object.colorName}`);
+      console.log(`rgb: ${object.rgb.r}, ${object.rgb.g}, ${object.rgb.b}`);
+      console.log(`hex: ${object.hex}`);
+    }
     res.sendStatus(200);
   } catch (error) {
     console.log(error);
     console.log('ERROR CAUGHT /generate');
   }
 });
+
+
 app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
 });

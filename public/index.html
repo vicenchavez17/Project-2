@@ -23,7 +23,7 @@
         document.getElementById('status').textContent = 'Processing...';
         
         try {
-          const response = await fetch('/generate', {
+          const response = await fetch('/recommend', {
             method: 'POST',
             body: formData
           });
