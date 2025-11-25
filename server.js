@@ -43,65 +43,94 @@ function isApparel(obj) {
   );
 }
 
+async function cropObject(imageBuffer, boundingPoly, width, height) {
+  const vertices = boundingPoly.normalizedVertices;
+  const left = Math.floor(vertices[0].x * width);
+  const top = Math.floor(vertices[0].y * height);
+  const right = Math.floor(vertices[2].x * width);
+  const bottom = Math.floor(vertices[2].y * height);
+
+  return sharp(imageBuffer)
+    .extract({ left, top, width: right - left, height: bottom - top })
+    .toBuffer();
+}
+
+async function getDetailedLabel(croppedBuffer) {
+  const [{ labelAnnotations }] = await client.labelDetection({
+    image: { content: croppedBuffer }
+  });
+
+
+  //debugging
+  // console.log('All labels for this item:');
+  // labelAnnotations.forEach((l, i) => {
+  //   console.log(`${i}: ${l.description} (${l.score})`);
+  // });
+
+  //skipping useless or broad labels
+  const skipWords = [
+    //colors
+    'blue', 'red', 'green', 'yellow', 'black', 'white', 'pink', 'purple', 'orange', 'brown', 'gray', 'grey',
+    //generic terms
+    'sleeve', 'collar', 'button', 'fabric', 'textile', 'material', 'clothing', 'garment', 'wear',
+    //body parts
+    'shoulder', 'neck', 'arm', 'hand', 'elbow', 'muscle', 'chest', 'torso',
+    //actions/poses
+    'standing', 'sitting', 'walking', 'running'
+  ];
+  const label = labelAnnotations.find(l => 
+    !skipWords.includes(l.description.toLowerCase())
+  );
+
+  return label?.description || 'unknown';
+}
+
+async function getDominantColor(imageBuffer) {
+
+  const [{ imagePropertiesAnnotation }] = await client.imageProperties({
+    image: { content: imageBuffer }
+  });
+
+
+  const color = imagePropertiesAnnotation.dominantColors.colors[0].color;
+  const r = color.red || 0;
+  const g = color.green || 0;
+  const b = color.blue || 0;
+
+  const hex = rgbToHex(r, g, b);
+  
+  return ntc.name(hex)[1];
+}
+
 async function getObjects(imageBuffer) {
-  // TODO
   const request = createVisionRequest(imageBuffer);
   const [result] = await client.objectLocalization(request);
-  const objects = result.localizedObjectAnnotations; 
-  const apparel = objects.filter((obj) => isApparel(obj.name));
+  const objects = result.localizedObjectAnnotations;
 
-  const metadata = await sharp(imageBuffer).metadata();
-  const { width, height } = metadata;
+  // console.log('All detected objects:');
+  // objects.forEach(obj => {
+  //   console.log(`  ${obj.name} (${obj.score})`);
+  // });
 
-  console.log('---------');
-  console.log('apparel:');
-  for (const item of apparel) {
-    console.log(item.name);
+  const apparelItems = objects.filter(obj => isApparel(obj.name));
+  const { width, height } = await sharp(imageBuffer).metadata();
+
+  console.log('Filtered apparel items:');
+  apparelItems.forEach(obj => {
+    console.log(`  ${obj.name} (${obj.score})`);
+  });
+
+  for (const object of apparelItems) {
+    const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
+    const label = await getDetailedLabel(croppedBuffer);
+    const color = await getDominantColor(croppedBuffer);
+
+    console.log(`${color} ${label}`);
   }
 
-  for (const object of objects) {
-    //getting bounding box coords 
-    const vertices = object.boundingPoly.normalizedVertices;
-
-    const left = Math.floor(vertices[0].x * width);
-    const top = Math.floor(vertices[0].y * height);
-    const right = Math.floor(vertices[2].x * width);
-    const bottom = Math.floor(vertices[2].y * height);
-
-    const cropWidth = right - left;
-    const croptHeight = bottom - top;
-
-    //cropping occurs here.
-    const croppedBuffer = await sharp(imageBuffer).extract({ left, top, width: cropWidth, height: croptHeight}).toBuffer();
-
-    //getting colors 
-    const [colorsResult] = await client.imageProperties({
-      image: { content: croppedBuffer}
-    });
-
-    console.log(`object name: ${object.name}`);
-
-
-    const colors = colorsResult.imagePropertiesAnnotation.dominantColors.colors;
-    const color = colors[0];
-
-
-    console.log('Dominant colors:');
-    const r = color.color.red || 0;
-    const g = color.color.green || 0;
-    const b = color.color.blue || 0;
-  
-    const hex = rgbToHex(r, g, b);
-    const name1 = ntc.name(hex);
-    console.log(name1[1]);
-  };
-
-  return objects;
+  return apparelItems; // TODO
 }
 
-function getApparel(objects) {
-  // TODO
-}
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req,res) => {
