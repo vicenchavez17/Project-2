@@ -9,18 +9,22 @@
     
     <form id='uploadForm'>
         <input type='file' name='image' accept='image/*' required>
-        <input type='submit' value='Analyze Image'>
+        <input type='text' name='query' placeholder='e.g. shirt, pants, jacket'>
+        <input type='submit' value='Generate Image'>
     </form>
     <div id="status"></div>
+    <img id="result" style="display: none; max-width: 500px;">
 
     <script>
       document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-        e.preventDefault(); // Prevent page reload
+        e.preventDefault();
         
         const formData = new FormData();
         formData.append('image', e.target.image.files[0]);
+        formData.append('query', e.target.query.value);
         
         document.getElementById('status').textContent = 'Processing...';
+        document.getElementById('result').style.display = 'none';
         
         try {
           const response = await fetch('/recommend', {
@@ -29,7 +33,10 @@
           });
           
           if (response.ok) {
+            const data = await response.json();
             document.getElementById('status').textContent = 'Success!';
+            document.getElementById('result').src = 'data:image/png;base64,' + data.image;
+            document.getElementById('result').style.display = 'block';
           } else {
             document.getElementById('status').textContent = 'Error!';
           }
@@ -40,4 +47,3 @@
     </script>
   </body>
 </html>
-
