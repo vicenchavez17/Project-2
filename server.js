@@ -84,30 +84,21 @@ async function cropObject(imageBuffer, boundingPoly, width, height) {
  */
 async function getDetailedLabel(croppedBuffer) {
   const [{ labelAnnotations }] = await client.labelDetection({
-    image: { content: croppedBuffer }
+    image: { content: croppedBuffer },
+    maxResults: 50
   });
 
 
   //debugging
-  // console.log('All labels for this item:');
-  // labelAnnotations.forEach((l, i) => {
-  //   console.log(`${i}: ${l.description} (${l.score})`);
-  // });
+  console.log('All labels for this item:');
+  labelAnnotations.forEach((l, i) => {
+    console.log(`${i}: ${l.description} (${l.score})`);
+  });
 
-  //skipping useless or broad labels
-  const skipWords = [
-    //colors
-    'blue', 'red', 'green', 'yellow', 'black', 'white', 'pink', 'purple', 'orange', 'brown', 'gray', 'grey',
-    //generic terms
-    'sleeve', 'collar', 'button', 'fabric', 'textile', 'material', 'clothing', 'garment', 'wear',
-    //body parts
-    'shoulder', 'neck', 'arm', 'hand', 'elbow', 'muscle', 'chest', 'torso', 'chin', 'eyes', 'cheek',
-    //actions/poses
-    'standing', 'sitting', 'walking', 'running'
-  ];
-  const label = labelAnnotations.find(l => 
-    !skipWords.includes(l.description.toLowerCase())
-  );
+  const label = labelAnnotations.find(l => {
+    const desc = l.description.toLowerCase();
+    return APPAREL_WHITE_LIST.some(term => desc.includes(term));
+  });
 
   return label?.description || 'unknown';
 }
