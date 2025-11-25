@@ -113,6 +113,19 @@ async function getObjects(imageBuffer) {
   // });
 
   const apparelItems = objects.filter(obj => isApparel(obj.name));
+
+  //get unique apparel to avoid duplicate objects being detected by vision api
+  const uniqueApparel = [];
+  const seenTypes = new Set();
+  
+  for (const item of apparelItems) {
+    if (!seenTypes.has(item.name)) {
+      uniqueApparel.push(item);
+      seenTypes.add(item.name);
+    }
+  }
+  
+  console.log(`Filtered to ${uniqueApparel.length} unique apparel items`);
   const { width, height } = await sharp(imageBuffer).metadata();
 
   console.log('Filtered apparel items:');
@@ -120,7 +133,7 @@ async function getObjects(imageBuffer) {
     console.log(`  ${obj.name} (${obj.score})`);
   });
 
-  for (const object of apparelItems) {
+  for (const object of uniqueApparel) {
     const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
     const label = await getDetailedLabel(croppedBuffer);
     const color = await getDominantColor(croppedBuffer);
@@ -128,7 +141,7 @@ async function getObjects(imageBuffer) {
     console.log(`${color} ${label}`);
   }
 
-  return apparelItems; // TODO
+  return uniqueApparel; // TODO
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
