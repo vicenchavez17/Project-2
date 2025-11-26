@@ -13,6 +13,14 @@ const APPAREL_WHITE_LIST = [
   'swimsuit', 'bikini'
 ];
 
+const CATEGORIES = {
+  top: ['top', 'shirt', 't-shirt', 'tshirt', 'blouse', 'tank', 'sweater', 'hoodie', 'jacket', 'coat', 'cardigan', 'vest', 'blazer'],
+  bottom: ['bottom', 'pants', 'jeans', 'trousers', 'shorts', 'skirt', 'leggings'],
+  dress: ['dress', 'gown'],
+  footwear: ['shoes', 'sneakers', 'boots', 'sandals', 'heels'],
+  accessory: ['hat', 'cap', 'beanie', 'tie', 'scarf', 'belt', 'glove']
+};
+  
 const CONFIG_PORT = 3000;
 
-export { APPAREL_WHITE_LIST, CONFIG_PORT};
+export { APPAREL_WHITE_LIST, CATEGORIES, CONFIG_PORT};
