@@ -363,9 +363,14 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
   }
 });
 
-app.get('/images', authenticateToken(jwtSecret), (req, res) => {
-  const images = imageService.getImagesForUser(req.user.email);
-  res.json({ images });
+app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
+  try {
+    const images = await imageService.getImagesForUser(req.user.email);
+    res.json({ images });
+  } catch (err) {
+    console.error('Failed to fetch images for user:', err);
+    res.status(500).json({ error: 'Failed to fetch images' });
+  }
 });
 
 app.listen(PORT, () => {

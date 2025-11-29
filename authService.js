@@ -149,12 +149,22 @@ export class ImageService {
       }
     });
 
-    // Store metadata in Datastore (image URL will be retrievable from GCS)
+    // Make the file public so it can be loaded directly in the browser
+    try {
+      await file.makePublic();
+    } catch (err) {
+      // If making public fails, continue — we'll still store metadata with storagePath
+      // and you can generate signed URLs later if desired.
+      console.warn('Failed to make file public:', err.message || err);
+    }
+
+    // Store metadata in Datastore (include an HTTPS URL if possible)
+    const publicUrl = `https://storage.googleapis.com/${this.bucket.name}/${fileName}`;
     const entry = {
       id: imageId,
       timestamp: imageData.timestamp,
       storagePath: fileName,
-      url: `gs://${this.bucket.name}/${fileName}`
+      url: publicUrl
     };
 
     return this.store.addImage(email, entry);
