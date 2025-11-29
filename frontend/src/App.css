@@ -1,0 +1,18 @@
+main {
+  padding-bottom: 50px; /* prevents overlap with bottom navbar */
+}
+
+.navbar {
+  background-color: #1f1f36 !important; /* your dark background */
+  opacity: 1 !important;                /* fully opaque */
+  backdrop-filter: none;                /* remove glass blur if applied */
+}
+
+.navbar .nav-link {
+  color: #fe5163 !important;
+  transition: color 0.3s ease;
+}
+
+.navbar .nav-link:hover {
+  color: #ffffff !important;
+}

@@ -1,0 +1,42 @@
+:root {
+  --main-color: #fe5163;
+  --bg-light: #ffffff;
+  --bg-dark: #1f1f36;
+}
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  color: var(--main-color);
+}
+
+/* Default light theme */
+.light-theme {
+  background-color: var(--bg-light);
+}
+
+/* Dark theme */
+.dark-theme {
+  background-color: var(--bg-dark);
+}
+
+/* override for text and borders */
+* {
+  color: var(--main-color) !important;
+  border-color: var(--main-color) !important;
+}
+
+.card {
+  background-color: var(--bg-dark);
+}
+
+/* Example: Navbar adapts to theme */
+.navbar {
+  border-top: 2px solid var(--main-color) !important;
+}
+
+.result-image {
+  max-width: 100%;
+  max-height: 350px;
+  object-fit: contain;
+  border-radius: 8px;
+}
