@@ -3,45 +3,291 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apparel recommender</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 32px;
+        line-height: 1.5;
+      }
+
+      h1, h2 {
+        margin-bottom: 8px;
+      }
+
+      form {
+        margin-bottom: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      input[type="text"],
+      input[type="email"],
+      input[type="password"] {
+        padding: 8px;
+        min-width: 220px;
+      }
+
+      input[type="submit"],
+      button {
+        padding: 8px 12px;
+      }
+
+      #status {
+        margin: 8px 0;
+        color: #d64545;
+      }
+
+      #result {
+        display: none;
+        max-width: 500px;
+        margin-top: 12px;
+        border: 1px solid #ccc;
+        padding: 8px;
+      }
+
+      #savedImages {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 8px;
+      }
+
+      #savedImages img {
+        width: 100%;
+        border: 1px solid #e0e0e0;
+        padding: 4px;
+        box-sizing: border-box;
+      }
+
+      .muted {
+        color: #666;
+        margin-top: 4px;
+      }
+    </style>
   </head>
 
   <body>
-    
-    <form id='uploadForm'>
-        <input type='file' name='image' accept='image/*' required>
-        <input type='text' name='query' placeholder='e.g. shirt, pants, jacket'>
-        <input type='submit' value='Generate Image'>
-    </form>
-    <div id="status"></div>
-    <img id="result" style="display: none; max-width: 500px;">
+    <h1>Log in to generate and save images</h1>
+
+    <section>
+      <h2>Register</h2>
+      <form id="registerForm">
+        <input type="email" name="regEmail" placeholder="Email" required>
+        <input type="password" name="regPassword" placeholder="Password" required>
+        <input type="submit" value="Create account">
+      </form>
+    </section>
+
+    <section>
+      <h2>Login</h2>
+      <form id="loginForm">
+        <input type="email" name="loginEmail" placeholder="Email" required>
+        <input type="password" name="loginPassword" placeholder="Password" required>
+        <input type="submit" value="Login">
+      </form>
+    </section>
+
+    <section>
+      <h2>Generate apparel image</h2>
+      <form id="uploadForm">
+        <input type="file" name="image" accept="image/*" required>
+        <input type="text" name="query" placeholder="e.g. shirt, pants, jacket">
+        <input type="submit" value="Generate &amp; save">
+      </form>
+      <div id="status"></div>
+      <img id="result" alt="Generated apparel result">
+    </section>
+
+    <section>
+      <h2>Your saved images</h2>
+      <div id="savedImages"></div>
+      <p id="savedEmpty" class="muted">No saved images yet. Generate something to see it here.</p>
+    </section>
 
     <script>
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+      const savedImagesContainer = document.getElementById('savedImages');
+      const savedEmptyState = document.getElementById('savedEmpty');
+      const STORAGE_KEY = 'savedImages';
+
+      const normalizeImages = (value) => {
+        if (!value) return []; // No images stored yet
+        if (Array.isArray(value)) return value.filter(Boolean);
+        if (typeof value === 'object') return Object.values(value).filter(Boolean);
+        return []; // Any other type is treated as empty
+      };
+
+      const saveImagesToStorage = (images) => {
+        const normalized = normalizeImages(images);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        return normalized;
+      };
+
+      const renderSavedImages = (images) => {
+        savedImagesContainer.innerHTML = '';
+        const safeImages = normalizeImages(images);
+
+        if (safeImages.length === 0) {
+          savedEmptyState.style.display = 'block';
+          return;
+        }
+
+        savedEmptyState.style.display = 'none';
+
+        safeImages.forEach((src) => {
+          const img = document.createElement('img');
+          img.src = src;
+          img.alt = 'Saved apparel recommendation';
+          savedImagesContainer.appendChild(img);
+        });
+      };
+
+      const loadSavedImages = () => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          const safeImages = normalizeImages(parsed);
+          renderSavedImages(safeImages);
+          return safeImages;
+        } catch (error) {
+          statusEl.textContent = `Failed to read saved images: ${error.message}`;
+          return [];
+        }
+      };
+
+      let savedImages = loadSavedImages();
+
       document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+        statusEl.textContent = '';
+
+        const token = localStorage.getItem('token');
+        if (!token) {
+          statusEl.textContent = 'Please log in or register first.';
+          statusEl.style.color = '#d64545';
+          return;
+        }
+
+        const file = e.target.image.files[0];
+        if (!file) {
+          statusEl.textContent = 'Please choose an image first.';
+          statusEl.style.color = '#d64545';
+          return;
+        }
+
         const formData = new FormData();
-        formData.append('image', e.target.image.files[0]);
+        formData.append('image', file);
         formData.append('query', e.target.query.value);
         
-        document.getElementById('status').textContent = 'Processing...';
-        document.getElementById('result').style.display = 'none';
-        
+        statusEl.textContent = 'Processing...';
+        statusEl.style.color = '#666';
+        resultEl.style.display = 'none';
+
         try {
           const response = await fetch('/recommend', {
             method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
             body: formData
           });
           
           if (response.ok) {
             const data = await response.json();
-            document.getElementById('status').textContent = 'Success!';
-            document.getElementById('result').src = 'data:image/png;base64,' + data.image;
-            document.getElementById('result').style.display = 'block';
+            const imageSrc = 'data:image/png;base64,' + data.image;
+            statusEl.textContent = 'Success!';
+            statusEl.style.color = '#28a745';
+            resultEl.src = imageSrc;
+            resultEl.style.display = 'block';
+
+            // Update saved images safely to avoid forEach errors
+            savedImages = saveImagesToStorage([...savedImages, imageSrc]);
+            renderSavedImages(savedImages);
           } else {
-            document.getElementById('status').textContent = 'Error!';
+            const error = await response.json();
+            statusEl.textContent = `Error: ${error.error || 'Failed to generate image.'}`;
+            statusEl.style.color = '#d64545';
           }
         } catch (error) {
-          document.getElementById('status').textContent = 'Failed: ' + error.message;
+           statusEl.textContent = `Failed: ${error.message}`;
+           statusEl.style.color = '#d64545';
+        }
+      });
+
+      // Register user
+      document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        statusEl.textContent = '';
+
+        const email = e.target.regEmail.value;
+        const password = e.target.regPassword.value;
+
+        if (!email || !password) {
+          statusEl.textContent = 'Email and password are required.';
+          return;
+        }
+
+        try {
+          const response = await fetch('/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            statusEl.textContent = 'Registration successful! You are now logged in.';
+            statusEl.style.color = '#28a745';
+            localStorage.setItem('token', data.token);
+            e.target.reset();
+          } else {
+            statusEl.textContent = `Registration failed: ${data.error}`;
+            statusEl.style.color = '#d64545';
+          }
+        } catch (error) {
+          statusEl.textContent = `Error: ${error.message}`;
+          statusEl.style.color = '#d64545';
+        }
+      });
+
+      // Login user
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        statusEl.textContent = '';
+
+        const email = e.target.loginEmail.value;
+        const password = e.target.loginPassword.value;
+
+        if (!email || !password) {
+          statusEl.textContent = 'Email and password are required.';
+          return;
+        }
+
+        try {
+          const response = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            statusEl.textContent = 'Login successful!';
+            statusEl.style.color = '#28a745';
+            localStorage.setItem('token', data.token);
+            e.target.reset();
+          } else {
+            statusEl.textContent = `Login failed: ${data.error}`;
+            statusEl.style.color = '#d64545';
+          }
+        } catch (error) {
+          statusEl.textContent = `Error: ${error.message}`;
+          statusEl.style.color = '#d64545';
         }
       });
     </script>

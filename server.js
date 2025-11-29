@@ -8,6 +8,12 @@ import sharp from 'sharp';
 import ntc from 'ntc';
 import { APPAREL_WHITE_LIST, CATEGORIES, CONFIG_PORT } from './config.js';
 import aiplatform from '@google-cloud/aiplatform';
+import {
+  AuthService,
+  ImageService,
+  authenticateToken,
+  createDefaultStore
+} from './authService.js';
 
 const { PredictionServiceClient } = aiplatform.v1;
 const { helpers } = aiplatform;
@@ -26,8 +32,15 @@ const aiClient = new PredictionServiceClient({
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024}, 
+  limits: { fileSize: 5 * 1024 * 1024},
 });
+
+// Basic file-backed services so authentication works without extra infra.
+const store = createDefaultStore();
+const jwtSecret = process.env.JWT_SECRET || 'development-secret';
+const authService = new AuthService({ store, jwtSecret });
+const storageBucket = process.env.GCS_BUCKET || 'apparel-images'; // Configure via env var
+const imageService = new ImageService({ store, storageBucket });
 
 const createVisionRequest = (imageBuffer, maxResults = 30) => ({
   image: {content: imageBuffer},
@@ -35,6 +48,9 @@ const createVisionRequest = (imageBuffer, maxResults = 30) => ({
 });
 
 const client = new vision.ImageAnnotatorClient();
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 /**
@@ -273,18 +289,50 @@ async function generateImage(apparelData, userQuery) {
       return decoded.bytesBase64Encoded;
     }
   }
-  
+
   throw new Error('No predictions returned');
 }
-app.use(express.static(path.join(__dirname, 'public')));
 
+// Health check to see server responds for uptime probes.
 app.get('/', (req,res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/recommend', upload.single('image'), async (req, res) => {
+// --- Auth + image routes ---
+app.post('/auth/register', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    const token = await authService.registerUser(email, password);
+    res.json({ token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    const token = await authService.loginUser(email, password);
+    res.json({ token });
+  } catch (err) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
+// Only authenticated users can generate + store their images.
+app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('No image uploaded.');
-  
+
   try {
     let apparelData = await getObjects(req.file.buffer);
     for (const object of apparelData) {
@@ -297,12 +345,27 @@ app.post('/recommend', upload.single('image'), async (req, res) => {
     const userQuery = req.body.query || '';
     const generatedImage = await generateImage(apparelData, userQuery);
 
-    res.json({ image: generatedImage });
+    const imageId = `${Date.now()}`;
+    const timestamp = new Date().toISOString();
+    
+    // Save base64 image to Google Cloud Storage and metadata to Datastore
+    await imageService.addImageForUser(req.user.email, {
+      id: imageId,
+      timestamp: timestamp,
+      base64: generatedImage
+    });
+
+    res.json({ image: generatedImage, id: imageId, timestamp: timestamp });
   } catch (error) {
     console.log(error);
     console.log('ERROR CAUGHT /generate');
     res.status(500).send('Error generating image');
   }
+});
+
+app.get('/images', authenticateToken(jwtSecret), (req, res) => {
+  const images = imageService.getImagesForUser(req.user.email);
+  res.json({ images });
 });
 
 app.listen(PORT, () => {
