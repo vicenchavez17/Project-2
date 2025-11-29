@@ -205,6 +205,7 @@
 
       logoutBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        localStorage.removeItem('savedImages');
         localStorage.removeItem('token');
         statusEl.textContent = 'Logged out.';
         statusEl.style.color = '#666';
@@ -296,6 +297,7 @@
             statusEl.textContent = 'Registration successful! You are now logged in.';
             statusEl.style.color = '#28a745';
             localStorage.setItem('token', data.token);
+            localStorage.removeItem('savedImages');
             if (typeof updateAuthUI === 'function') updateAuthUI();
             if (typeof fetchServerImages === 'function') fetchServerImages();
             e.target.reset();
@@ -335,6 +337,7 @@
             statusEl.textContent = 'Login successful!';
             statusEl.style.color = '#28a745';
             localStorage.setItem('token', data.token);
+            localStorage.removeItem('savedImages');
             if (typeof updateAuthUI === 'function') updateAuthUI();
             if (typeof fetchServerImages === 'function') fetchServerImages();
             e.target.reset();
