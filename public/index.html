@@ -87,6 +87,7 @@
         <input type="password" name="loginPassword" placeholder="Password" required>
         <input type="submit" value="Login">
       </form>
+      <button id="logoutBtn" style="display:none; margin-top:8px;">Logout</button>
     </section>
 
     <section>
@@ -160,6 +161,56 @@
 
       let savedImages = loadSavedImages();
 
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      const updateAuthUI = () => {
+        const token = localStorage.getItem('token');
+        logoutBtn.style.display = token ? 'inline-block' : 'none';
+      };
+
+      // Ensure UI reflects auth state on load
+      updateAuthUI();
+
+      // Fetch images stored in the server (GCS metadata) and sync local saved images
+      const fetchServerImages = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+          const resp = await fetch('/images', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (!resp.ok) {
+            // don't overwrite local state on error
+            return;
+          }
+
+          const data = await resp.json();
+          if (!data || !Array.isArray(data.images)) return;
+
+          // Use the server-provided URL (public HTTPS URL) where available
+          const urls = data.images.map(i => i.url).filter(Boolean);
+          if (urls.length > 0) {
+            savedImages = saveImagesToStorage(urls);
+            renderSavedImages(savedImages);
+          }
+        } catch (err) {
+          console.warn('Failed to fetch server images:', err.message || err);
+        }
+      };
+
+      // If user already logged in, sync server images on load
+      if (localStorage.getItem('token')) fetchServerImages();
+
+      logoutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        statusEl.textContent = 'Logged out.';
+        statusEl.style.color = '#666';
+        updateAuthUI();
+      });
+
       document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         statusEl.textContent = '';
@@ -206,6 +257,8 @@
             // Update saved images safely to avoid forEach errors
             savedImages = saveImagesToStorage([...savedImages, imageSrc]);
             renderSavedImages(savedImages);
+            // Sync with server-stored images (metadata in Datastore + GCS URLs)
+            fetchServerImages();
           } else {
             const error = await response.json();
             statusEl.textContent = `Error: ${error.error || 'Failed to generate image.'}`;
@@ -243,6 +296,8 @@
             statusEl.textContent = 'Registration successful! You are now logged in.';
             statusEl.style.color = '#28a745';
             localStorage.setItem('token', data.token);
+            if (typeof updateAuthUI === 'function') updateAuthUI();
+            if (typeof fetchServerImages === 'function') fetchServerImages();
             e.target.reset();
           } else {
             statusEl.textContent = `Registration failed: ${data.error}`;
@@ -280,6 +335,8 @@
             statusEl.textContent = 'Login successful!';
             statusEl.style.color = '#28a745';
             localStorage.setItem('token', data.token);
+            if (typeof updateAuthUI === 'function') updateAuthUI();
+            if (typeof fetchServerImages === 'function') fetchServerImages();
             e.target.reset();
           } else {
             statusEl.textContent = `Login failed: ${data.error}`;

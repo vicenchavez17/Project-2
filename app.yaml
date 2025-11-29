@@ -2,4 +2,4 @@ runtime: nodejs20
 
 env_variables:
   NODE_ENV: 'production'
-  GCS_BUCKET_NAME: 'outfitai'
+  GCS_BUCKET_NAME: 'apparel-images'
