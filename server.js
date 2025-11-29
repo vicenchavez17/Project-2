@@ -103,27 +103,28 @@ async function cropObject(imageBuffer, boundingPoly, width, height) {
 /**
  * Gets a detailed label for a cropped apparel item, filtering out generic/irrelevant labels
  * @param {Buffer} croppedBuffer - Cropped image buffer of the apparel item
- * @returns {Promise<string>} Specific apparel label or 'unknown'
+ * @param {string} originalObjectName - Original object name from object localization
+ * @returns {Promise<string>} Specific apparel label or original object name
  */
-async function getDetailedLabel(croppedBuffer) {
+async function getDetailedLabel(croppedBuffer, originalObjectName) {
   const [{ labelAnnotations }] = await client.labelDetection({
     image: { content: croppedBuffer },
     maxResults: 50
   });
 
-
-  //debugging
-  console.log('All labels for this item:');
-  labelAnnotations.forEach((l, i) => {
-    console.log(`${i}: ${l.description} (${l.score})`);
-  });
+  //debuging 
+  console.log(`\nLabels for ${originalObjectName}:`, labelAnnotations.slice(0, 10).map(l => l.description));
 
   const label = labelAnnotations.find(l => {
     const desc = l.description.toLowerCase();
     return APPAREL_WHITE_LIST.some(term => desc.includes(term));
   });
 
-  return label?.description || 'unknown';
+  //chose original label if unkown
+  const finalLabel = label?.description || originalObjectName || 'unknown';
+  console.log(`Final label: ${finalLabel}\n`);
+  
+  return finalLabel;
 }
 
 /**
@@ -165,10 +166,11 @@ async function getObjects(imageBuffer) {
   const [result] = await client.objectLocalization(request);
   const objects = result.localizedObjectAnnotations;
 
-  // console.log('All detected objects:');
-  // objects.forEach(obj => {
-  //   console.log(`  ${obj.name} (${obj.score})`);
-  // });
+  console.log('\n=== All detected objects ===');
+  objects.forEach(obj => {
+    console.log(`  ${obj.name} (confidence: ${obj.score.toFixed(2)})`);
+  });
+  console.log('===========================\n');
 
   const apparelItems = objects.filter(obj => isApparel(obj.name));
 
@@ -183,17 +185,14 @@ async function getObjects(imageBuffer) {
     }
   }
   
-  console.log(`Filtered to ${uniqueApparel.length} unique apparel items`);
   const { width, height } = await sharp(imageBuffer).metadata();
 
   const apparelData = [];
 
   for (const object of uniqueApparel) {
     const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
-    const label = await getDetailedLabel(croppedBuffer);
+    const label = await getDetailedLabel(croppedBuffer, object.name);
     const colorData = await getColorData(croppedBuffer);
-
-    console.log(`${colorData.colorName} ${label}`);
 
     apparelData.push({
       label: label,
@@ -213,7 +212,9 @@ async function getObjects(imageBuffer) {
  * @param {string} userQuery - User's search query
  * @returns {Object|null} Matching apparel object or first item if no match, null if empty
  */function findClosestApparel(apparelData, userQuery) {
+  
   if (!userQuery || userQuery.trim() === '') {
+    // console.log('No query provided, returning first item');
     return apparelData.length > 0 ? apparelData[0] : null;
   }
 
@@ -223,25 +224,101 @@ async function getObjects(imageBuffer) {
   for (const [category, keywords] of Object.entries(CATEGORIES)) {
     if (keywords.some(keyword => query.includes(keyword))) {
       targetCategory = category;
+      // console.log(`Matched category: ${category}`);
       break;
     }
   }
   
   //if no label found, return first object
   if (!targetCategory) {
+    // console.log('No category match, returning first item');
     return apparelData.length > 0 ? apparelData[0] : null;
   }
   
   const matches = apparelData.filter(item => {
     const itemLabel = item.label.toLowerCase();
-    return CATEGORIES[targetCategory].some(keyword => itemLabel.includes(keyword));
+    const isMatch = CATEGORIES[targetCategory].some(keyword => itemLabel.includes(keyword));
+    // console.log(`  Checking "${item.label}": ${isMatch}`);
+    return isMatch;
   });
   
-  return matches.length > 0 ? matches[0] : apparelData[0];
+  const selected = matches.length > 0 ? matches[0] : apparelData[0];
+  // console.log(`Selected: ${selected.label}`);
+  // console.log('=====================================\n');
+  
+  return selected;
+}
+
+/**
+ * Recolors a generated image to match the target color
+ * I need this in order to get the proper color of the apparel the user wants.
+ * @param {Buffer} imageBuffer - Generated image buffer
+ * @param {Object} targetRgb - Target RGB color {r, g, b}
+ * @returns {Promise<Buffer>} Recolored image buffer
+ */
+async function recolorImage(imageBuffer, targetRgb) {
+  const image = sharp(imageBuffer);
+  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+  
+  // rgb math to recolor image 
+  let sumR = 0, sumG = 0, sumB = 0, count = 0;
+  const WHITE_THRESHOLD = 240;
+  
+  for (let i = 0; i < data.length; i += info.channels) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    
+    const isBackground = r >= WHITE_THRESHOLD && g >= WHITE_THRESHOLD && b >= WHITE_THRESHOLD;
+    
+    if (!isBackground) {
+      sumR += r;
+      sumG += g;
+      sumB += b;
+      count++;
+    }
+  }
+  
+  if (count === 0) return imageBuffer;
+  
+  const avgR = sumR / count;
+  const avgG = sumG / count;
+  const avgB = sumB / count;
+  
+  //calculates shift needed for new color
+  const shiftR = targetRgb.r - avgR;
+  const shiftG = targetRgb.g - avgG;
+  const shiftB = targetRgb.b - avgB;
+  
+  console.log(`Recoloring: RGB(${Math.round(avgR)}, ${Math.round(avgG)}, ${Math.round(avgB)}) -> RGB(${targetRgb.r}, ${targetRgb.g}, ${targetRgb.b})`);
+  
+  // some code i needed to stop the the whole image from being black if apparel is black
+  for (let i = 0; i < data.length; i += info.channels) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    
+    const isBackground = r >= WHITE_THRESHOLD && g >= WHITE_THRESHOLD && b >= WHITE_THRESHOLD;
+    
+    if (!isBackground) {
+      data[i] = Math.max(0, Math.min(255, Math.round(r + shiftR)));
+      data[i + 1] = Math.max(0, Math.min(255, Math.round(g + shiftG)));
+      data[i + 2] = Math.max(0, Math.min(255, Math.round(b + shiftB)));
+    }
+  }
+  
+  return sharp(data, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: info.channels
+    }
+  }).png().toBuffer();
 }
 
 /**
  * Generates a product image using Vertex AI Imagen based on apparel data
+ * Uses neutral color then recolors to match detected color
  * @param {Array<Object>} apparelData - Array of detected apparel objects
  * @param {string} userQuery - User's search query to find matching apparel
  * @returns {Promise<string>} Base64 encoded image string
@@ -253,8 +330,15 @@ async function generateImage(apparelData, userQuery) {
     throw new Error('No apparel found');
   }
 
-  const imagePrompt = `A ${apparel.colorName} ${apparel.label} with the hex color ${apparel.hex} laid flat on a pure white background, product photography style.`;
-  console.log('Image prompt:', imagePrompt);
+  // using beige as neutral color because gemini image generation isn't handling white backgrounds well when recoloring
+  const NEUTRAL_COLOR = 'beige';
+  const NEUTRAL_HEX = '#c8b299';
+  
+  // Need to generate object in nuetral color first. The image generation returns orange if specific hex code or rbg value was part of the prompt.
+  // Work around I found that applies accurate color beside generic ('green', 'yellow', etc.)is to to make a blank apparel image and then to apply
+  // color to it later.
+  const imagePrompt = `A ${NEUTRAL_COLOR} ${apparel.label} with the hex color ${NEUTRAL_HEX} laid flat on a pure white background, product photography style.`;
+  console.log(`Generating ${apparel.label}, will recolor to ${apparel.colorName} ${apparel.hex}`);
 
   const projectID = process.env.GOOGLE_CLOUD_PROJECT;
   const location = 'us-central1';
@@ -270,28 +354,37 @@ async function generateImage(apparelData, userQuery) {
     parameters: parametersValue,
   };
 
+  
   const [response] = await aiClient.predict(request);
   
-  console.log('Full response:', JSON.stringify(response, null, 2));
-  console.log('Predictions:', response.predictions);
   
   if (response.predictions && response.predictions.length > 0) {
     const prediction = response.predictions[0];
-    console.log('First prediction:', JSON.stringify(prediction, null, 2));
     
+    let base64Image;
     if (prediction.structValue) {
-      return prediction.structValue.fields.bytesBase64Encoded.stringValue;
+      base64Image = prediction.structValue.fields.bytesBase64Encoded.stringValue;
     } else if (prediction.bytesBase64Encoded) {
-      return prediction.bytesBase64Encoded;
+      base64Image = prediction.bytesBase64Encoded;
     } else {
       const decoded = helpers.fromValue(prediction);
-      console.log('Decoded prediction:', decoded);
-      return decoded.bytesBase64Encoded;
+      base64Image = decoded.bytesBase64Encoded;
     }
+    
+    if (!base64Image) {
+      throw new Error('No base64 image in prediction');
+    }
+    
+    // recolor the generated image to match target color
+    const imageBuffer = Buffer.from(base64Image, 'base64');
+    const recoloredBuffer = await recolorImage(imageBuffer, apparel.rgb);
+    return recoloredBuffer.toString('base64');
   }
-
+  
+  console.error('No predictions in response:', response);
   throw new Error('No predictions returned');
 }
+
 
 // Health check to see server responds for uptime probes.
 app.get('/', (req,res) => {
@@ -335,14 +428,10 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
 
   try {
     let apparelData = await getObjects(req.file.buffer);
-    for (const object of apparelData) {
-      console.log(`label: ${object.label}`);
-      console.log(`colorName: ${object.colorName}`);
-      console.log(`rgb: ${object.rgb.r}, ${object.rgb.g}, ${object.rgb.b}`);
-      console.log(`hex: ${object.hex}`);
-    }
 
     const userQuery = req.body.query || '';
+    console.log(`User query received: "${userQuery}"`);
+    
     const generatedImage = await generateImage(apparelData, userQuery);
 
     const imageId = `${Date.now()}`;
@@ -357,9 +446,23 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
 
     res.json({ image: generatedImage, id: imageId, timestamp: timestamp });
   } catch (error) {
-    console.log(error);
-    console.log('ERROR CAUGHT /generate');
-    res.status(500).send('Error generating image');
+    console.error('Error details:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Error generating image',
+      message: error.message,
+      details: error.toString()
+    });
+  }
+});
+
+app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
+  try {
+    const images = await imageService.getImagesForUser(req.user.email);
+    res.json({ images });
+  } catch (err) {
+    console.error('Failed to fetch images for user:', err);
+    res.status(500).json({ error: 'Failed to fetch images' });
   }
 });
 
