@@ -207,6 +207,8 @@
         e.preventDefault();
         localStorage.removeItem('savedImages');
         localStorage.removeItem('token');
+        savedImages = [];
+        renderSavedImages(savedImages);
         statusEl.textContent = 'Logged out.';
         statusEl.style.color = '#666';
         updateAuthUI();
@@ -255,10 +257,8 @@
             resultEl.src = imageSrc;
             resultEl.style.display = 'block';
 
-            // Update saved images safely to avoid forEach errors
-            savedImages = saveImagesToStorage([...savedImages, imageSrc]);
-            renderSavedImages(savedImages);
-            // Sync with server-stored images (metadata in Datastore + GCS URLs)
+            // Don't store base64 in localStorage (quota exceeded)
+            // Instead fetch server images to get the GCS URL and display that
             fetchServerImages();
           } else {
             const error = await response.json();
