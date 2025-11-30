@@ -211,42 +211,92 @@ async function getObjects(imageBuffer) {
  * @param {Array<Object>} apparelData - Array of detected apparel objects
  * @param {string} userQuery - User's search query
  * @returns {Object|null} Matching apparel object or first item if no match, null if empty
- */function findClosestApparel(apparelData, userQuery) {
+*/
+function findClosestApparel(apparelData, userQuery) {
   
+  if (!apparelData || apparelData.length === 0) {
+    return null;
+  }
+  
+  // If no query, return first item
   if (!userQuery || userQuery.trim() === '') {
-    // console.log('No query provided, returning first item');
-    return apparelData.length > 0 ? apparelData[0] : null;
+    console.log('No query provided, returning first item:', apparelData[0].label);
+    return apparelData[0];
   }
 
-  const query = userQuery.toLowerCase();
+  const query = userQuery.toLowerCase().trim();
+  console.log('\n=== Finding closest apparel for query:', query, '===');
   
-  let targetCategory = null;
-  for (const [category, keywords] of Object.entries(CATEGORIES)) {
-    if (keywords.some(keyword => query.includes(keyword))) {
-      targetCategory = category;
-      // console.log(`Matched category: ${category}`);
-      break;
+  // score each apparel item based on querry
+  const scoredItems = apparelData.map(item => {
+    const label = item.label.toLowerCase();
+    let score = 0;
+    
+    if (label === query) {
+      score = 1000;
+      return { item, score };
     }
-  }
-  
-  //if no label found, return first object
-  if (!targetCategory) {
-    // console.log('No category match, returning first item');
-    return apparelData.length > 0 ? apparelData[0] : null;
-  }
-  
-  const matches = apparelData.filter(item => {
-    const itemLabel = item.label.toLowerCase();
-    const isMatch = CATEGORIES[targetCategory].some(keyword => itemLabel.includes(keyword));
-    // console.log(`  Checking "${item.label}": ${isMatch}`);
-    return isMatch;
+    
+    if (label.includes(query)) {
+      score = 500;
+      return { item, score };
+    }
+    
+    if (query.includes(label)) {
+      score = 400;
+      return { item, score };
+    }
+    
+    let categoryMatched = false;
+    if (typeof CATEGORIES !== 'undefined') {
+      for (const [category, keywords] of Object.entries(CATEGORIES)) {
+        const queryMatchesCategory = keywords.some(keyword => query.includes(keyword));
+        const labelMatchesCategory = keywords.some(keyword => label.includes(keyword));
+        
+        if (queryMatchesCategory && labelMatchesCategory) {
+          score = 300;
+          categoryMatched = true;
+          break;
+        }
+      }
+    }
+    
+    // does the word matching
+    if (!categoryMatched) {
+      const queryWords = query.split(/\s+/);
+      const labelWords = label.split(/\s+/);
+      
+      let wordMatches = 0;
+      for (const queryWord of queryWords) {
+        for (const labelWord of labelWords) {
+          if (queryWord === labelWord) {
+            wordMatches += 50;
+          } else if (queryWord.includes(labelWord) || labelWord.includes(queryWord)) {
+            wordMatches += 25;
+          }
+        }
+      }
+      
+      score += wordMatches;
+      // if (wordMatches > 0) {
+      //   console.log(`"${item.label}": Word matches, score: ${score}`);
+      // } else {
+      //   console.log(`"${item.label}": No match`);
+      // }
+    }
+    
+    return { item, score };
   });
   
-  const selected = matches.length > 0 ? matches[0] : apparelData[0];
-  // console.log(`Selected: ${selected.label}`);
-  // console.log('=====================================\n');
+  scoredItems.sort((a, b) => b.score - a.score);
+  const selected = scoredItems[0];
   
-  return selected;
+  // if score 0 return null, do not generate image.
+  if (selected.score === 0) {
+    console.log(`no ${query} object found`);
+    return null;
+  }
+  return selected.item;
 }
 
 /**
@@ -327,7 +377,8 @@ async function generateImage(apparelData, userQuery) {
   const apparel = findClosestApparel(apparelData, userQuery);
   
   if (!apparel) {
-    throw new Error('No apparel found');
+    const detectedItems = apparelData.map(item => item.label).join(', ');
+    throw new Error(`Could not find "${userQuery}" in the image. Here is wat is found in image: ${detectedItems}`);
   }
 
   // using beige as neutral color because gemini image generation isn't handling white backgrounds well when recoloring
