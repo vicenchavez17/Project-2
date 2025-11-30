@@ -6,6 +6,7 @@ import AboutPage from './pages/AboutPage';
 import SignInPage from "./pages/SignInPage";
 import SelectImagePage from "./pages/SelectImagePage";
 import ResultPage from "./pages/ResultPage";
+import ProfilePage from "./pages/ProfilePage";
 import Navbar from "./components/Navbar";
 
 import 'bootstrap/dist/css/bootstrap.css';
@@ -26,6 +27,7 @@ function App() {
             <Route path="/signin" element={<SignInPage />} />
             <Route path="/selectimage" element={<SelectImagePage />} />
             <Route path="/result" element={<ResultPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Routes>
         </main>
       </div>
