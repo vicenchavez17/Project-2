@@ -86,12 +86,15 @@
       <img id="result" alt="Generated apparel result">
     </section>
 
+    <h2>shopping links:</h2>
+    <div id="shoppingLinksContainer"></div>
+
     <section>
       <h2>Your saved images</h2>
       <div id="savedImages"></div>
       <p id="savedEmpty" class="muted">No saved images yet. Generate something to see it here.</p>
     </section>
-
+    <script src="scripts/shopping-links.js"></script>
     <script>
       const statusEl = document.getElementById('status');
       const resultEl = document.getElementById('result');
@@ -200,6 +203,7 @@
             resultEl.src = 'data:image/png;base64,' + data.image;
             resultEl.style.display = 'block';
             setStatus('Success!', '#28a745');
+            displayShoppingLinks(data.shoppingLinks, 'shoppingLinksContainer');
             fetchAndDisplayServerImages();
           } else {
             const error = await response.json();
