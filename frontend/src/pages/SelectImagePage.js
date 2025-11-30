@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 export default function SelectImagePage() {
   const [selectedImage, setSelectedImage] = useState(null); // base64 preview
@@ -7,6 +8,7 @@ export default function SelectImagePage() {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  const { token } = useContext(AuthContext);
 
   const navigate = useNavigate();
 
@@ -55,8 +57,11 @@ export default function SelectImagePage() {
       formData.append("image", selectedFile);
       formData.append("query", inputText);
 
-      const response = await fetch("http://localhost:3000/recommend", {
+      const response = await fetch("/recommend", {
         method: "POST",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData,
       });
 
@@ -143,7 +148,6 @@ export default function SelectImagePage() {
             disabled={
               loading ||
               !selectedImage ||
-              inputText.trim().length === 0 ||
               !selectedFile /* prevents Pinterest placeholder */
             }
             onClick={handleContinue}

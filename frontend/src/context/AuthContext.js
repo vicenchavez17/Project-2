@@ -1,14 +1,4 @@
 import { createContext, useState, useEffect } from "react";
-
-// Helper to read the auth cookie
-function getAuthTokenFromCookie() {
-  const cookie = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("authToken="));
-
-  return cookie ? cookie.split("=")[1] : null;
-}
-
 // Create the context
 export const AuthContext = createContext();
 
@@ -29,43 +19,50 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Called when user signs in
-  const login = (tokenValue, usernameValue) => {
-    // Save cookie
-    document.cookie = `authToken=${tokenValue}; path=/; SameSite=Strict`;
+const login = (emailOrUsername, tokenValue) => {
+  // Save JWT in HttpOnly cookie? (You said frontend cookie for now)
+  //document.cookie = `authToken=${tokenValue}; path=/; SameSite=Strict`;
 
-    // Update state
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify({username: usernameValue}));
-    setUser({username: usernameValue});
-  };
+  // Save token in localStorage for quick access (non-sensitive)
+  localStorage.setItem("token", tokenValue);
+  setToken(tokenValue);
+
+  // Save user info
+  localStorage.setItem(
+    "user",
+    JSON.stringify({ username: emailOrUsername })
+  );
+
+  // Update context state
+  setUser({ username: emailOrUsername });
+};
 
   // Called when user logs out
   const logout = () => {
-    // Remove cookie
-    document.cookie =
-      "authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict";
-
-    // Clear state
-    localStorage.setItem("logout-event", Date.now());
     localStorage.removeItem("token");
-    localStorage.removeItem("user");
     setUser(null);
     setToken(null);
+
+    // notify other tabs
+    localStorage.setItem("logout-event", Date.now());
+
+    // redirect handled inside Navbar logout button
   };
 
+
   useEffect(() => {
-    const handleStorage = (e) => {
+    const syncLogout = (e) => {
       if (e.key === "logout-event") {
         setUser(null);
+        localStorage.removeItem("token");
       }
     };
 
-    window.addEventListener("storage", handleStorage);
+    window.addEventListener("storage", syncLogout);
 
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-    };
+    return () => window.removeEventListener("storage", syncLogout);
   }, []);
+
 
 
   return (
