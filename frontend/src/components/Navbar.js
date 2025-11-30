@@ -2,6 +2,7 @@ import { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ThemeContext } from "../context/ThemeContext";
 import { AuthContext } from "../context/AuthContext";
+
 import NavItem from "./NavItem";
 
 export default function Navbar() {
@@ -35,23 +36,38 @@ export default function Navbar() {
           {theme === "dark" ? "Light" : "Dark"}
         </button>
 
-        {/* Username + Logout */}
-        <div className="d-flex align-items-center">
-          {user && (
-            <span className="me-3 fw-bold">
-              {user.username}
-            </span>
-          )}
+        {/* Profile + Username + Logout */}
+          <div className="d-flex align-items-center">
 
-          {user && (
-            <button
-              className="btn btn-sm btn-outline-danger"
-              onClick={ handleLogout }
-            >
-              Logout
-            </button>
-          )}
-        </div>
+            {/* Profile Button (only when logged in) */}
+            {user && (
+              <button
+                className={`btn btn-sm me-3 ${
+                  theme === "dark" ? "btn-outline-light" : "btn-outline-dark"
+                }`}
+                onClick={() => navigate("/profile")}
+              >
+                Profile
+              </button>
+            )}
+
+            {/* Username */}
+            {user && (
+              <span className="me-3 fw-bold">
+                {user.username}
+              </span>
+            )}
+
+            {/* Logout */}
+            {user && (
+              <button
+                className="btn btn-sm btn-outline-danger"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            )}
+          </div>
       </div>
 
       {/* Bottom row with nav links */}
