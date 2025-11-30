@@ -436,6 +436,74 @@ async function generateImage(apparelData, userQuery) {
   throw new Error('No predictions returned');
 }
 
+/**
+ * Converts RGB to basic color name for shopping queries
+ * Uses RGB values to determine the closest basic color
+ * @param {Object} rgb - RGB values {r, g, b}
+ * @returns {string} Basic color name (red, blue, green, etc.)
+ */
+function getBasicColorFromRGB(rgb) {
+  const {r, g, b} = rgb;
+  
+  // needed this function because searching for better shopping links. 
+  // Basic colors yeild better results the over 1k colors that ntc 
+  // has. Red Active Shirt yeilds better results.
+
+  //catulate brightness and saturation
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const brightness = (r + g + b) / 3;
+  const saturation = max - min;
+  
+  // grayscale colors (low saturation)
+  if (saturation < 30) {
+    if (brightness < 50) return 'black';
+    if (brightness < 130) return 'gray';
+    if (brightness < 200) return 'light gray';
+    return 'white';
+  }
+  
+  //determine dominant color
+  if (r === max) {
+    
+    // Red is dominant
+    if (g > 150 && b < 100) return 'orange';
+    if (g > 80 && b < 80 && r > 120) return 'brown';
+    if (b > 130) return 'pink';
+    return 'red';
+  } else if (g === max) {
+    // Green is dominant
+    if (r > 150 && b < 100) return 'yellow';
+    if (r > 80 && b > 80) return 'olive';
+    return 'green';
+  } else {
+    // Blue is dominant
+    if (r > 130 && g < 100) return 'purple';
+    if (g > 130) return 'teal';
+    if (brightness < 100) return 'navy';
+    return 'blue';
+  }
+}
+
+/**
+ * Generates a Google Shopping search link for the apparel
+ * @param {string} apparelLabel - The apparel label (e.g., "baseball cap")
+ * @param {Object} rgb - The RGB color values {r, g, b}
+ * @returns {Array<Object>} Array with single Google Shopping link
+ */
+function getShoppingLinks(apparelLabel, rgb) {
+  const basicColor = getBasicColorFromRGB(rgb);
+  const query = `${basicColor} ${apparelLabel}`;
+  const encodedQuery = encodeURIComponent(query);
+  const googleShoppingUrl = `https://www.google.com/search?tbm=shop&q=${encodedQuery}`;
+  
+  return [{
+    url: googleShoppingUrl,
+    title: `Search Google Shopping for "${query}"`
+  }];
+}
+
+
 
 // Health check to see server responds for uptime probes.
 app.get('/', (req,res) => {
@@ -483,7 +551,16 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
     const userQuery = req.body.query || '';
     console.log(`User query received: "${userQuery}"`);
     
+    // Find the matching apparel first
+    const selectedApparel = findClosestApparel(apparelData, userQuery);
+    
     const generatedImage = await generateImage(apparelData, userQuery);
+
+    // Generate shopping links using the selected apparel
+    let shoppingLinks = [];
+    if (selectedApparel) {
+      shoppingLinks = getShoppingLinks(selectedApparel.label, selectedApparel.rgb);
+    }
 
     const imageId = `${Date.now()}`;
     const timestamp = new Date().toISOString();
@@ -495,7 +572,11 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
       base64: generatedImage
     });
 
-    res.json({ image: generatedImage, id: imageId, timestamp: timestamp });
+    res.json({ 
+      image: generatedImage, 
+      id: imageId, 
+      timestamp: timestamp,
+      shoppingLinks: shoppingLinks});
   } catch (error) {
     console.error('Error details:', error);
     console.error('Error stack:', error.stack);
