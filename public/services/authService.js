@@ -71,6 +71,16 @@ export class DatastoreStore {
     if (!entity) return [];
     return entity.images || [];
   }
+
+  /**
+   * Overwrite the images array for a user. Used to remove entries
+   * that point to non-existent storage objects.
+   */
+  async setImages(email, images) {
+    const key = this._imageKey(email);
+    await this.datastore.save({ key, data: { images } });
+    return images;
+  }
 }
 
 /**
@@ -83,14 +93,19 @@ export class AuthService {
     this.jwtSecret = jwtSecret;
   }
 
-  async registerUser(email, password) {
+  async registerUser(fullName, username, email, password) {
     const existing = await this.store.getUser(email);
     if (existing) {
       throw new Error('User already exists');
     }
 
     const hashed = await bcrypt.hash(password, 10); // 10 rounds balances security/perf
-    await this.store.saveUser(email, { email, password: hashed });
+    await this.store.saveUser(email, { 
+      fullName, 
+      username, 
+      email, 
+      password: hashed 
+    });
 
     return this.generateToken({ email });
   }
@@ -149,16 +164,10 @@ export class ImageService {
       }
     });
 
-    // Make the file public so it can be loaded directly in the browser
-    try {
-      await file.makePublic();
-    } catch (err) {
-      // If making public fails, continue — we'll still store metadata with storagePath
-      // and you can generate signed URLs later if desired.
-      console.warn('Failed to make file public:', err.message || err);
-    }
-
-    // Store metadata in Datastore (include an HTTPS URL if possible)
+    // With Uniform bucket-level access enabled, per-object ACLs are disabled
+    // and `file.makePublic()` will fail. We rely on bucket-level IAM bindings
+    // (e.g. allUsers:roles/storage.objectViewer) to make objects publicly
+    // readable. Construct the public HTTPS URL for access.
     const publicUrl = `https://storage.googleapis.com/${this.bucket.name}/${fileName}`;
     const entry = {
       id: imageId,
@@ -171,7 +180,43 @@ export class ImageService {
   }
 
   async getImagesForUser(email) {
-    return this.store.getImages(email);
+    // Load metadata from Datastore
+    const images = await this.store.getImages(email);
+
+    if (!this.bucket) return images;
+
+    const existing = [];
+    const missing = [];
+
+    // Check each image exists in the bucket; filter out missing objects
+    await Promise.all(images.map(async (img) => {
+      try {
+        const file = this.bucket.file(img.storagePath);
+        const [exists] = await file.exists();
+        if (exists) {
+          existing.push(img);
+        } else {
+          missing.push(img);
+        }
+      } catch (e) {
+        // on error, treat as missing to be safe
+        missing.push(img);
+      }
+    }));
+
+    // If there are missing entries, persist the cleaned list back to Datastore
+    if (missing.length > 0) {
+      try {
+        // store may be DatastoreStore which provides setImages
+        if (typeof this.store.setImages === 'function') {
+          await this.store.setImages(email, existing);
+        }
+      } catch (e) {
+        console.error('Failed to update stored images after pruning missing objects', e);
+      }
+    }
+
+    return existing;
   }
 }
 
