@@ -71,6 +71,8 @@
   <body>
     <h1>Log in to generate and save images</h1>
 
+    <button id="loginBtn" style="margin-bottom: 16px; padding: 8px 12px;">Login / Register</button>
+
     <!-- Auth testing moved to `public/auth-test.html` -->
 
     <section>
@@ -120,6 +122,11 @@
       };
 
       const updateAuthUI = () => {};
+
+      // Redirect to auth test page when login button clicked
+      document.getElementById('loginBtn').addEventListener('click', () => {
+        window.location.href = '/auth-test.html';
+      });
 
       // Fetch images from server (GCS URLs) and display them
       const fetchAndDisplayServerImages = async () => {

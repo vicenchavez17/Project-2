@@ -59,8 +59,9 @@
       const data = await resp.json();
       if (resp.ok) {
         localStorage.setItem('token', data.token);
-        setStatus('Login successful — token saved', '#28a745');
+        setStatus('Login successful — redirecting...', '#28a745');
         loginForm.reset();
+        setTimeout(() => window.location.href = '/index.html', 500);
       } else {
         setStatus(`Login failed: ${data.error || resp.status}`);
       }
