@@ -71,24 +71,7 @@
   <body>
     <h1>Log in to generate and save images</h1>
 
-    <section>
-      <h2>Register</h2>
-      <form id="registerForm">
-        <input type="email" name="regEmail" placeholder="Email" required>
-        <input type="password" name="regPassword" placeholder="Password" required>
-        <input type="submit" value="Create account">
-      </form>
-    </section>
-
-    <section>
-      <h2>Login</h2>
-      <form id="loginForm">
-        <input type="email" name="loginEmail" placeholder="Email" required>
-        <input type="password" name="loginPassword" placeholder="Password" required>
-        <input type="submit" value="Login">
-      </form>
-      <button id="logoutBtn" style="display:none; margin-top:8px;">Logout</button>
-    </section>
+    <!-- Auth testing moved to `public/auth-test.html` -->
 
     <section>
       <h2>Generate apparel image</h2>
@@ -112,24 +95,15 @@
       const resultEl = document.getElementById('result');
       const savedImagesContainer = document.getElementById('savedImages');
       const savedEmptyState = document.getElementById('savedEmpty');
-      const STORAGE_KEY = 'savedImages';
 
-      const normalizeImages = (value) => {
-        if (!value) return []; // No images stored yet
-        if (Array.isArray(value)) return value.filter(Boolean);
-        if (typeof value === 'object') return Object.values(value).filter(Boolean);
-        return []; // Any other type is treated as empty
-      };
-
-      const saveImagesToStorage = (images) => {
-        const normalized = normalizeImages(images);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-        return normalized;
+      const setStatus = (message, color = '#d64545') => {
+        statusEl.textContent = message;
+        statusEl.style.color = color;
       };
 
       const renderSavedImages = (images) => {
         savedImagesContainer.innerHTML = '';
-        const safeImages = normalizeImages(images);
+        const safeImages = Array.isArray(images) ? images.filter(Boolean) : [];
 
         if (safeImages.length === 0) {
           savedEmptyState.style.display = 'block';
@@ -137,7 +111,6 @@
         }
 
         savedEmptyState.style.display = 'none';
-
         safeImages.forEach((src) => {
           const img = document.createElement('img');
           img.src = src;
@@ -146,35 +119,15 @@
         });
       };
 
-      const loadSavedImages = () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          const parsed = raw ? JSON.parse(raw) : [];
-          const safeImages = normalizeImages(parsed);
-          renderSavedImages(safeImages);
-          return safeImages;
-        } catch (error) {
-          statusEl.textContent = `Failed to read saved images: ${error.message}`;
-          return [];
+      const updateAuthUI = () => {};
+
+      // Fetch images from server (GCS URLs) and display them
+      const fetchAndDisplayServerImages = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          renderSavedImages([]);
+          return;
         }
-      };
-
-      let savedImages = loadSavedImages();
-
-      const logoutBtn = document.getElementById('logoutBtn');
-
-      const updateAuthUI = () => {
-        const token = localStorage.getItem('token');
-        logoutBtn.style.display = token ? 'inline-block' : 'none';
-      };
-
-      // Ensure UI reflects auth state on load
-      updateAuthUI();
-
-      // Fetch images stored in the server (GCS metadata) and sync local saved images
-      const fetchServerImages = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
 
         try {
           const resp = await fetch('/images', {
@@ -182,37 +135,28 @@
           });
 
           if (!resp.ok) {
-            // don't overwrite local state on error
+            console.warn('Failed to fetch images, status:', resp.status);
+            renderSavedImages([]);
             return;
           }
 
           const data = await resp.json();
-          if (!data || !Array.isArray(data.images)) return;
-
-          // Use the server-provided URL (public HTTPS URL) where available
-          const urls = data.images.map(i => i.url).filter(Boolean);
-          if (urls.length > 0) {
-            savedImages = saveImagesToStorage(urls);
-            renderSavedImages(savedImages);
+          if (!data || !Array.isArray(data.images)) {
+            renderSavedImages([]);
+            return;
           }
+
+          const urls = data.images.map(i => i.url).filter(Boolean);
+          renderSavedImages(urls);
         } catch (err) {
           console.warn('Failed to fetch server images:', err.message || err);
+          renderSavedImages([]);
         }
       };
 
-      // If user already logged in, sync server images on load
-      if (localStorage.getItem('token')) fetchServerImages();
+      fetchAndDisplayServerImages();
 
-      logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('savedImages');
-        localStorage.removeItem('token');
-        savedImages = [];
-        renderSavedImages(savedImages);
-        statusEl.textContent = 'Logged out.';
-        statusEl.style.color = '#666';
-        updateAuthUI();
-      });
+      // Logout handled in separate auth test page
 
       document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -220,15 +164,13 @@
 
         const token = localStorage.getItem('token');
         if (!token) {
-          statusEl.textContent = 'Please log in or register first.';
-          statusEl.style.color = '#d64545';
+          setStatus('Please log in or register first.');
           return;
         }
 
         const file = e.target.image.files[0];
         if (!file) {
-          statusEl.textContent = 'Please choose an image first.';
-          statusEl.style.color = '#d64545';
+          setStatus('Please choose an image first.');
           return;
         }
 
@@ -236,120 +178,32 @@
         formData.append('image', file);
         formData.append('query', e.target.query.value);
         
-        statusEl.textContent = 'Processing...';
-        statusEl.style.color = '#666';
+        setStatus('Processing...', '#666');
         resultEl.style.display = 'none';
 
         try {
           const response = await fetch('/recommend', {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Authorization': `Bearer ${token}` },
             body: formData
           });
           
           if (response.ok) {
             const data = await response.json();
-            const imageSrc = 'data:image/png;base64,' + data.image;
-            statusEl.textContent = 'Success!';
-            statusEl.style.color = '#28a745';
-            resultEl.src = imageSrc;
+            resultEl.src = 'data:image/png;base64,' + data.image;
             resultEl.style.display = 'block';
-
-            // Don't store base64 in localStorage (quota exceeded)
-            // Instead fetch server images to get the GCS URL and display that
-            fetchServerImages();
+            setStatus('Success!', '#28a745');
+            fetchAndDisplayServerImages();
           } else {
             const error = await response.json();
-            statusEl.textContent = `Error: ${error.error || 'Failed to generate image.'}`;
-            statusEl.style.color = '#d64545';
+            setStatus(`Error: ${error.error || 'Failed to generate image.'}`);
           }
         } catch (error) {
-           statusEl.textContent = `Failed: ${error.message}`;
-           statusEl.style.color = '#d64545';
+          setStatus(`Failed: ${error.message}`);
         }
       });
 
-      // Register user
-      document.getElementById('registerForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        statusEl.textContent = '';
-
-        const email = e.target.regEmail.value;
-        const password = e.target.regPassword.value;
-
-        if (!email || !password) {
-          statusEl.textContent = 'Email and password are required.';
-          return;
-        }
-
-        try {
-          const response = await fetch('/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-          });
-
-          const data = await response.json();
-
-          if (response.ok) {
-            statusEl.textContent = 'Registration successful! You are now logged in.';
-            statusEl.style.color = '#28a745';
-            localStorage.setItem('token', data.token);
-            localStorage.removeItem('savedImages');
-            if (typeof updateAuthUI === 'function') updateAuthUI();
-            if (typeof fetchServerImages === 'function') fetchServerImages();
-            e.target.reset();
-          } else {
-            statusEl.textContent = `Registration failed: ${data.error}`;
-            statusEl.style.color = '#d64545';
-          }
-        } catch (error) {
-          statusEl.textContent = `Error: ${error.message}`;
-          statusEl.style.color = '#d64545';
-        }
-      });
-
-      // Login user
-      document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        statusEl.textContent = '';
-
-        const email = e.target.loginEmail.value;
-        const password = e.target.loginPassword.value;
-
-        if (!email || !password) {
-          statusEl.textContent = 'Email and password are required.';
-          return;
-        }
-
-        try {
-          const response = await fetch('/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-          });
-
-          const data = await response.json();
-
-          if (response.ok) {
-            statusEl.textContent = 'Login successful!';
-            statusEl.style.color = '#28a745';
-            localStorage.setItem('token', data.token);
-            localStorage.removeItem('savedImages');
-            if (typeof updateAuthUI === 'function') updateAuthUI();
-            if (typeof fetchServerImages === 'function') fetchServerImages();
-            e.target.reset();
-          } else {
-            statusEl.textContent = `Login failed: ${data.error}`;
-            statusEl.style.color = '#d64545';
-          }
-        } catch (error) {
-          statusEl.textContent = `Error: ${error.message}`;
-          statusEl.style.color = '#d64545';
-        }
-      });
+      // Register / Login handled in separate auth test page
     </script>
   </body>
 </html>

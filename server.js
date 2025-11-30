@@ -13,7 +13,7 @@ import {
   ImageService,
   authenticateToken,
   createDefaultStore
-} from './authService.js';
+} from './public/services/authService.js';
 
 const { PredictionServiceClient } = aiplatform.v1;
 const { helpers } = aiplatform;
@@ -444,14 +444,14 @@ app.get('/', (req,res) => {
 
 // --- Auth + image routes ---
 app.post('/auth/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { fullName, username, email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  if (!fullName || !username || !email || !password) {
+    return res.status(400).json({ error: 'Full name, username, email, and password are required' });
   }
 
   try {
-    const token = await authService.registerUser(email, password);
+    const token = await authService.registerUser(fullName, username, email, password);
     res.json({ token });
   } catch (err) {
     res.status(400).json({ error: err.message });
