@@ -4,7 +4,6 @@ import { AuthContext } from "../context/AuthContext";
 import "bootstrap/dist/css/bootstrap.css";
 
 export default function SignInPage() {
-  // Access login from context
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -12,7 +11,7 @@ export default function SignInPage() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   // Sign in form state
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   // Create account form state
@@ -22,81 +21,81 @@ export default function SignInPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const [apiError, setApiError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Fake Create API
-  function fakeCreateAccountAPI(formData) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (formData.email.toLowerCase() === "taken@example.com") {
-          reject({ message: "Email is already in use." });
-        } else {
-          resolve({ success: true });
-        }
-      }, 1000);
+  // Helper function to call backend
+  async function postJSON(url, body) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-  }
 
-  // Fake Sign In API
-  function fakeSignInAPI({ username, password }) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (username.toLowerCase() === "unknownuser") {
-          reject({ message: "Username does not exist." });
-        }
-
-        resolve({
-          success: true,
-          token: "fake_jwt_token_12345",
-        });
-      }, 1000);
-    });
-  }
-
-  const handleSignIn = async (e) => {
-    e.preventDefault();
-    setApiError("");
-
-    try {
-      const response = await fakeSignInAPI({ username, password });
-
-      // Use AuthContext login()
-      login(response.token, username);
-
-      // Navigate to dashboard (selectimage)
-      navigate("/selectimage");
-
-    } catch (err) {
-      setApiError(err.message || "Login failed.");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Request failed");
     }
-  };
+    return data;
+  }
 
+  // -------------------------
+  // Handle Create Account
+  // -------------------------
   const handleCreateAccount = async (e) => {
     e.preventDefault();
     setApiError("");
+    setIsLoading(true);
 
     try {
-      await fakeCreateAccountAPI({
-        name: newName,
-        email: newEmail,
+      const result = await postJSON("/auth/register", {
+        fullName: newName,
         username: newUsername,
+        email: newEmail,
         password: newPassword,
       });
 
-      // Prefill the main sign in form
-      setUsername(newUsername);
+      // success: backend returns a token
+      login(email, result.token);
+
+      // Auto-fill the login form
+      setEmail(newEmail);
       setPassword(newPassword);
 
-      // Close the create account area
+      // Close create account form
       setIsCreatingAccount(false);
 
-      // Clear the create form
-      setNewName("");
-      setNewEmail("");
-      setNewUsername("");
-      setNewPassword("");
-
+      // Redirect to selectimage
+      navigate("/selectimage");
     } catch (err) {
-      setApiError(err.message || "Something went wrong.");
+      setApiError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // -------------------------
+  // Handle Login
+  // -------------------------
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    setApiError("");
+    setIsLoading(true);
+
+    try {
+      const result = await postJSON("/auth/login", {
+        email,
+        password,
+      });
+
+      // Save token + user into context
+      login(email, result.token);
+
+      // Move to selectimage
+      navigate("/selectimage");
+    } catch (err) {
+      setApiError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -115,13 +114,14 @@ export default function SignInPage() {
 
             <form onSubmit={handleSignIn}>
               <div className="mb-3">
-                <label className="form-label">Username</label>
+                <label className="form-label">Email</label>
                 <input
-                  type="text"
+                  type="email"
                   className="form-control"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
                 />
               </div>
 
@@ -133,11 +133,16 @@ export default function SignInPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
+                  required
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary w-100">
-                Sign In
+              <button
+                type="submit"
+                className="btn btn-primary w-100"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing In..." : "Sign In"}
               </button>
             </form>
 
@@ -226,8 +231,12 @@ export default function SignInPage() {
                     Cancel
                   </button>
 
-                  <button type="submit" className="btn btn-success">
-                    Create
+                  <button
+                    type="submit"
+                    className="btn btn-success"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Creating..." : "Create"}
                   </button>
                 </div>
               </form>
