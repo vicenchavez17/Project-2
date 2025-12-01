@@ -5,8 +5,9 @@ import vinny from "../assets/about/vinny.png";
 
 export default function AboutPage() {
   return (
-    <div className="container text-center my-5">
-      <h1 className="mb-4">About the Creators</h1>
+    <div className="page-wrapper">
+      <div className="container text-center">
+        <h1 className="page-title">About the Creators</h1>
 
       <div className="row justify-content-center">
         <div className="col-12 col-md-4 mb-4">
@@ -65,6 +66,7 @@ export default function AboutPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -102,8 +102,9 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="container my-5">
-      <div className="row justify-content-center">
+    <div className="page-wrapper">
+      <div className="container">
+        <div className="row justify-content-center">
         
         {/* Sign In Form */}
         <div className="col-md-5">
@@ -246,6 +247,7 @@ export default function SignInPage() {
           </div>
         )}
 
+      </div>
       </div>
     </div>
   );
