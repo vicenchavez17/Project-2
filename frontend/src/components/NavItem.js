@@ -9,12 +9,8 @@ export default function NavItem({ to, label }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `nav-link ${
-          isActive
-            ? "fw-bold text-warning"
-            : theme === "dark"
-            ? "text-light"
-            : "text-dark"
+        `nav-link-modern ${
+          isActive ? "active" : ""
         }`
       }
     >

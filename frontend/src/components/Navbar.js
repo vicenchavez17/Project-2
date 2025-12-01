@@ -22,65 +22,58 @@ export default function Navbar() {
   }, [user]);
 
   return (
-    <nav className="navbar fixed-bottom border-top w-100 p-0">
-      {/* Top row containing theme toggle + user info + logout */}
-      <div className="w-100 d-flex justify-content-between align-items-center px-3 py-2">
+    <nav className="navbar-modern fixed-top w-100">
+      <div className="navbar-container">
+        {/* Left: Brand Logo */}
+        <div className="navbar-brand" onClick={() => navigate("/")}>
+          <span className="brand-text">OutFit AI</span>
+          <span className="brand-icon">✨</span>
+        </div>
 
-        {/* Theme Button */}
-        <button
-          onClick={toggleTheme}
-          className={`btn btn-sm ${
-            theme === "dark" ? "btn-outline-light" : "btn-outline-dark"
-          }`}
-        >
-          {theme === "dark" ? "Light" : "Dark"}
-        </button>
+        {/* Center: Nav Links */}
+        <div className="navbar-links">
+          <NavItem to="/" label="Home" />
+          <NavItem to="/about" label="About" />
+          <NavItem to="/contact" label="Contact" />
+          {user ? (
+            <NavItem to="/selectimage" label="Create" />
+          ) : (
+            <NavItem to="/signin" label="Sign In" />
+          )}
+        </div>
 
-        {/* Profile + Username + Logout */}
-          <div className="d-flex align-items-center">
+        {/* Right: Theme Toggle + User Section */}
+        <div className="navbar-actions">
+          {/* Theme Toggle Icon */}
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
 
-            {/* Profile Button (only when logged in) */}
-            {user && (
+          {/* User Section */}
+          {user && (
+            <div className="user-section">
               <button
-                className={`btn btn-sm me-3 ${
-                  theme === "dark" ? "btn-outline-light" : "btn-outline-dark"
-                }`}
+                className="profile-btn"
                 onClick={() => navigate("/profile")}
+                title="View Profile"
               >
-                Profile
+                <span className="profile-icon">👤</span>
+                <span className="username-text">{user.username}</span>
               </button>
-            )}
-
-            {/* Username */}
-            {user && (
-              <span className="me-3 fw-bold">
-                {user.username}
-              </span>
-            )}
-
-            {/* Logout */}
-            {user && (
               <button
-                className="btn btn-sm btn-outline-danger"
+                className="logout-btn"
                 onClick={handleLogout}
+                title="Logout"
               >
-                Logout
+                <span className="logout-icon">🚪</span>
               </button>
-            )}
-          </div>
-      </div>
-
-      {/* Bottom row with nav links */}
-      <div className="d-flex justify-content-around w-100 py-2">
-        <NavItem to="/" label="Home" />
-        <NavItem to="/about" label="About" />
-        <NavItem to="/contact" label="Contact" />
-
-        {user ? (
-          <NavItem to="/selectimage" label="Create" />
-        ) : (
-          <NavItem to="/signin" label="Sign In" />
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   );
