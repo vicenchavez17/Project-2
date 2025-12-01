@@ -37,6 +37,14 @@ export class DatastoreStore {
     return entity || null;
   }
 
+  async getUserByUsername(username) {
+    // Query the user kind for an entity with matching username
+    const q = this.datastore.createQuery(this.userKind).filter('username', '=', username).limit(1);
+    const [entities] = await this.datastore.runQuery(q);
+    if (entities && entities.length > 0) return entities[0];
+    return null;
+  }
+
   async saveUser(email, data) {
     const key = this._userKey(email);
     // Datastore save expects { key, data }
@@ -110,8 +118,21 @@ export class AuthService {
     return this.generateToken({ email });
   }
 
-  async loginUser(email, password) {
-    const user = await this.store.getUser(email);
+  async loginUser(identifier, password) {
+    // identifier may be an email address or a username
+    let user = null;
+    if (typeof identifier === 'string' && identifier.includes('@')) {
+      user = await this.store.getUser(identifier);
+    } else {
+      // treat as username, attempt to find corresponding user entity
+      if (typeof this.store.getUserByUsername === 'function') {
+        user = await this.store.getUserByUsername(identifier);
+      } else {
+        // fallback: try to treat identifier as email
+        user = await this.store.getUser(identifier);
+      }
+    }
+
     if (!user) {
       throw new Error('Invalid credentials');
     }
@@ -121,6 +142,8 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
+    // Ensure token payload contains a canonical email address for the user
+    const email = user.email || identifier;
     return this.generateToken({ email });
   }
 

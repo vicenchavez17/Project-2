@@ -1,7 +1,10 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import cors from 'cors';
 import vision from '@google-cloud/vision';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -26,6 +29,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || CONFIG_PORT || 3000;
 
+// Enable CORS for frontend development server
+app.use(cors());
+
+// Increase the header size limit to avoid 431 errors
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
 const aiClient = new PredictionServiceClient({
   apiEndpoint: 'us-central1-aiplatform.googleapis.com'
 });
@@ -48,9 +58,6 @@ const createVisionRequest = (imageBuffer, maxResults = 30) => ({
 });
 
 const client = new vision.ImageAnnotatorClient();
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 
 /**
@@ -459,14 +466,15 @@ app.post('/auth/register', async (req, res) => {
 });
 
 app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, identifier, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  const id = email || identifier;
+  if (!id || !password) {
+    return res.status(400).json({ error: 'Email/username and password are required' });
   }
 
   try {
-    const token = await authService.loginUser(email, password);
+    const token = await authService.loginUser(id, password);
     res.json({ token });
   } catch (err) {
     res.status(401).json({ error: err.message });
@@ -517,16 +525,29 @@ app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
   }
 });
 
-app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
-  try {
-    const images = await imageService.getImagesForUser(req.user.email);
-    res.json({ images });
-  } catch (err) {
-    console.error('Failed to fetch images for user:', err);
-    res.status(500).json({ error: 'Failed to fetch images' });
+// Serve static files and SPA fallback routes (must be AFTER all API routes)
+const frontendBuild = path.join(__dirname, 'frontend', 'build');
+const publicDir = path.join(__dirname, 'public');
+const frontendIndexExists = fs.existsSync(path.join(frontendBuild, 'index.html'));
+
+if (frontendIndexExists) {
+  app.use(express.static(frontendBuild));
+} else {
+  app.use(express.static(publicDir));
+}
+
+// SPA fallback - serve index.html for any unmatched routes (client-side routing)
+app.use((req, res) => {
+  if (frontendIndexExists) {
+    res.sendFile(path.join(frontendBuild, 'index.html'));
+  } else {
+    res.sendFile(path.join(publicDir, 'index.html'));
   }
 });
 
-app.listen(PORT, () => {
+// Create HTTP server with increased header size limit
+const server = http.createServer({ maxHeaderSize: 16384 }, app);
+
+server.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
 });

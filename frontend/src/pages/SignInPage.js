@@ -1,11 +1,12 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import authClient from "../services/authClient";
 import "bootstrap/dist/css/bootstrap.css";
 
 export default function SignInPage() {
-  // Access login from context
-  const { login } = useContext(AuthContext);
+  // Access login/register from context
+  const { login, register } = useContext(AuthContext);
   const navigate = useNavigate();
 
   // Track which form is visible
@@ -23,46 +24,18 @@ export default function SignInPage() {
 
   const [apiError, setApiError] = useState("");
 
-  // Fake Create API
-  function fakeCreateAccountAPI(formData) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (formData.email.toLowerCase() === "taken@example.com") {
-          reject({ message: "Email is already in use." });
-        } else {
-          resolve({ success: true });
-        }
-      }, 1000);
-    });
-  }
-
-  // Fake Sign In API
-  function fakeSignInAPI({ username, password }) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (username.toLowerCase() === "unknownuser") {
-          reject({ message: "Username does not exist." });
-        }
-
-        resolve({
-          success: true,
-          token: "fake_jwt_token_12345",
-        });
-      }, 1000);
-    });
-  }
+  // NOTE: This page now uses the centralized auth client/context.
 
   const handleSignIn = async (e) => {
     e.preventDefault();
     setApiError("");
 
     try {
-      const response = await fakeSignInAPI({ username, password });
+      // Authenticate with backend via authClient and then let context finalize login
+      const resp = await authClient.login(username, password);
+      if (!resp || !resp.token) throw new Error('Authentication failed');
 
-      // Use AuthContext login()
-      login(response.token, username);
-
-      // Navigate to dashboard (selectimage)
+      await login(resp.token);
       navigate("/selectimage");
 
     } catch (err) {
@@ -75,25 +48,21 @@ export default function SignInPage() {
     setApiError("");
 
     try {
-      await fakeCreateAccountAPI({
-        name: newName,
-        email: newEmail,
-        username: newUsername,
-        password: newPassword,
-      });
+      // Use AuthContext.register which will persist token and fetch profile
+      await register({ fullName: newName, username: newUsername, email: newEmail, password: newPassword });
 
-      // Prefill the main sign in form
+      // Prefill the main sign in form (register already logs the user in)
       setUsername(newUsername);
       setPassword(newPassword);
 
-      // Close the create account area
+      // Close the create account area and clear the create form
       setIsCreatingAccount(false);
-
-      // Clear the create form
       setNewName("");
       setNewEmail("");
       setNewUsername("");
       setNewPassword("");
+
+      navigate("/selectimage");
 
     } catch (err) {
       setApiError(err.message || "Something went wrong.");
