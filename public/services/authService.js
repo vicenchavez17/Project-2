@@ -94,16 +94,17 @@ export class AuthService {
   }
 
   async registerUser(fullName, username, email, password) {
-    const existing = await this.store.getUser(email);
+    const normalizedEmail = email.toLowerCase();
+    const existing = await this.store.getUser(normalizedEmail);
     if (existing) {
       throw new Error('User already exists');
     }
 
     const hashed = await bcrypt.hash(password, 10); // 10 rounds balances security/perf
-    await this.store.saveUser(email, { 
+    await this.store.saveUser(normalizedEmail, { 
       fullName, 
       username, 
-      email, 
+      email: normalizedEmail, 
       password: hashed 
     });
 
@@ -111,7 +112,8 @@ export class AuthService {
   }
 
   async loginUser(email, password) {
-    const user = await this.store.getUser(email);
+    const normalizedEmail = email.toLowerCase();
+    const user = await this.store.getUser(normalizedEmail);
     if (!user) {
       throw new Error('Invalid credentials');
     }
@@ -121,7 +123,10 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    return this.generateToken({ email });
+    return {
+      token: this.generateToken({ email: normalizedEmail }),
+      username: user.username
+    };
   }
 
   generateToken(payload) {

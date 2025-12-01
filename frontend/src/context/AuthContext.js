@@ -12,14 +12,16 @@ export function AuthProvider({ children }) {
     const savedUser = localStorage.getItem("user");
 
     if (savedToken && savedUser) {
+      setToken(savedToken);
       setUser(JSON.parse(savedUser));
     } else {
+      setToken(null);
       setUser(null);
     }
   }, []);
 
   // Called when user signs in
-const login = (emailOrUsername, tokenValue) => {
+const login = (username, tokenValue) => {
   // Save JWT in HttpOnly cookie? (You said frontend cookie for now)
   //document.cookie = `authToken=${tokenValue}; path=/; SameSite=Strict`;
 
@@ -30,16 +32,17 @@ const login = (emailOrUsername, tokenValue) => {
   // Save user info
   localStorage.setItem(
     "user",
-    JSON.stringify({ username: emailOrUsername })
+    JSON.stringify({ username })
   );
 
   // Update context state
-  setUser({ username: emailOrUsername });
+  setUser({ username });
 };
 
   // Called when user logs out
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
     setToken(null);
 
@@ -53,8 +56,10 @@ const login = (emailOrUsername, tokenValue) => {
   useEffect(() => {
     const syncLogout = (e) => {
       if (e.key === "logout-event") {
+        setToken(null);
         setUser(null);
         localStorage.removeItem("token");
+        localStorage.removeItem("user");
       }
     };
 

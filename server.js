@@ -52,6 +52,11 @@ const client = new vision.ImageAnnotatorClient();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'frontend', 'build')));
+}
+
 
 /**
  * Converts RGB color values to hexadecimal format
@@ -520,7 +525,7 @@ app.post('/auth/register', async (req, res) => {
 
   try {
     const token = await authService.registerUser(fullName, username, email, password);
-    res.json({ token });
+    res.json({ token, user: { username, email } });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -534,8 +539,8 @@ app.post('/auth/login', async (req, res) => {
   }
 
   try {
-    const token = await authService.loginUser(email, password);
-    res.json({ token });
+    const result = await authService.loginUser(email, password);
+    res.json({ token: result.token, user: { username: result.username, email } });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
@@ -598,11 +603,17 @@ app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
   }
 });
 
+// Serve React app for all other routes in production
 app.get('/*splat', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, 'frontend', 'build', 'index.html'));
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
