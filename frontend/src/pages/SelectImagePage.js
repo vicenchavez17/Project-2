@@ -94,14 +94,14 @@ export default function SelectImagePage() {
       <div className="container" style={{ maxWidth: "800px" }}>
         <div className="row justify-content-center">
           <div className="col-12">
-            <h1 className="page-title">Dashboard</h1>
+            <h1 className="page-title" style={{ marginBottom: "1.5rem", fontSize: "2rem", Bottom: "1.5rem", fontSize: "2rem" }}>Dashboard</h1>
 
           {apiError && (
-            <div className="alert alert-danger text-center mb-4">{apiError}</div>
+            <div className="alert alert-danger text-center mb-3">{apiError}</div>
           )}
 
           {!selectedImage && (
-            <div className="card shadow-sm p-5" style={{ backgroundColor: "#f8f9fa" }}>
+            <div className="card shadow-sm p-4" style={{ backgroundColor: "#f8f9fa" }}>
               <div className="text-center">
                 <div className="mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#6c757d" className="bi bi-image" viewBox="0 0 16 16">
@@ -141,7 +141,7 @@ export default function SelectImagePage() {
                     src={selectedImage}
                     alt="Selected"
                     className="img-fluid rounded"
-                    style={{ width: "100%", maxHeight: "400px", objectFit: "cover" }}
+                    style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
                   />
                   <div className="mt-3">
                     <button className="btn btn-outline-secondary w-100" onClick={handleUndo}>
