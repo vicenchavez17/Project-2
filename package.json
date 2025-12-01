@@ -17,6 +17,7 @@
   "dependencies": {
     "@google-cloud/aiplatform": "^5.13.0",
     "@google-cloud/datastore": "^9.0.1",
+    "@google-cloud/logging-winston": "^6.0.1",
     "@google-cloud/storage": "^7.13.0",
     "@google-cloud/vision": "^5.3.4",
     "@google/genai": "^1.30.0",
@@ -28,7 +29,8 @@
     "ntc": "^0.0.1",
     "path": "^0.12.7",
     "sharp": "^0.34.5",
-    "url": "^0.11.4"
+    "url": "^0.11.4",
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "kill-port": "^2.0.1"

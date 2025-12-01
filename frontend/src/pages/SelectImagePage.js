@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
@@ -8,9 +8,44 @@ export default function SelectImagePage() {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [showClosetModal, setShowClosetModal] = useState(false);
+  const [closetImages, setClosetImages] = useState([]);
+  const [loadingCloset, setLoadingCloset] = useState(false);
   const { token } = useContext(AuthContext);
 
   const navigate = useNavigate();
+
+  // Fetch virtual closet images
+  useEffect(() => {
+    if (showClosetModal && closetImages.length === 0) {
+      fetchClosetImages();
+    }
+  }, [showClosetModal]);
+
+  const fetchClosetImages = async () => {
+    setLoadingCloset(true);
+    try {
+      const resp = await fetch("/images", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!resp.ok) {
+        throw new Error("Failed to fetch saved images.");
+      }
+
+      const data = await resp.json();
+      if (data && Array.isArray(data.images)) {
+        setClosetImages(data.images.map(img => img.url).filter(Boolean));
+      }
+    } catch (err) {
+      console.error("Error fetching closet images:", err);
+      setApiError("Unable to load virtual closet images.");
+    } finally {
+      setLoadingCloset(false);
+    }
+  };
 
   // Handle file upload
   const handleFileUpload = (e) => {
@@ -34,6 +69,42 @@ export default function SelectImagePage() {
     setSelectedFile(null);
   };
 
+  // Handle virtual closet selection
+  const handleClosetSelect = () => {
+    setShowClosetModal(true);
+  };
+
+  // Convert URL to File object for API compatibility
+  const urlToFile = async (url, filename = 'closet-image.jpg') => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+    } catch (err) {
+      console.error("Error converting URL to file:", err);
+      throw new Error("Failed to load image from virtual closet.");
+    }
+  };
+
+  // Handle selecting an image from virtual closet
+  const handleClosetImageClick = async (imageUrl) => {
+    try {
+      setLoadingCloset(true);
+      setApiError("");
+      
+      // Convert the Google Cloud Storage URL to a File object
+      const file = await urlToFile(imageUrl);
+      
+      setSelectedFile(file);
+      setSelectedImage(imageUrl); // Use the URL directly for preview
+      setShowClosetModal(false);
+    } catch (err) {
+      setApiError(err.message || "Failed to select image from closet.");
+    } finally {
+      setLoadingCloset(false);
+    }
+  };
+
   // Undo
   const handleUndo = () => {
     setSelectedImage(null);
@@ -45,7 +116,7 @@ export default function SelectImagePage() {
   // Continue → Call backend API
   const handleContinue = async () => {
     if (!selectedFile) {
-      setApiError("Only uploaded images can be processed right now.");
+      setApiError("Please select an image that can be processed (uploaded or from closet).");
       return;
     }
 
@@ -74,7 +145,7 @@ export default function SelectImagePage() {
       // Pass to result page
       navigate("/result", {
         state: {
-          image: selectedImage,              // user uploaded preview
+          image: selectedImage,              // user uploaded preview or closet URL
           prompt: inputText,                // text user typed
           results: {
             text: "Your generated image result:", // until backend adds text
@@ -94,14 +165,14 @@ export default function SelectImagePage() {
       <div className="container" style={{ maxWidth: "800px" }}>
         <div className="row justify-content-center">
           <div className="col-12">
-            <h1 className="page-title" style={{ marginBottom: "1.5rem", fontSize: "2rem", Bottom: "1.5rem", fontSize: "2rem" }}>Dashboard</h1>
+            <h1 className="page-title">Dashboard</h1>
 
           {apiError && (
-            <div className="alert alert-danger text-center mb-3">{apiError}</div>
+            <div className="alert alert-danger text-center mb-4">{apiError}</div>
           )}
 
           {!selectedImage && (
-            <div className="card shadow-sm p-4" style={{ backgroundColor: "#f8f9fa" }}>
+            <div className="card shadow-sm p-5" style={{ backgroundColor: "#f8f9fa" }}>
               <div className="text-center">
                 <div className="mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#6c757d" className="bi bi-image" viewBox="0 0 16 16">
@@ -127,6 +198,13 @@ export default function SelectImagePage() {
                   >
                     Sign in to Pinterest
                   </button>
+
+                  <button
+                    className="btn btn-success btn-lg px-4"
+                    onClick={handleClosetSelect}
+                  >
+                    Choose from Closet
+                  </button>
                 </div>
               </div>
             </div>
@@ -141,7 +219,7 @@ export default function SelectImagePage() {
                     src={selectedImage}
                     alt="Selected"
                     className="img-fluid rounded"
-                    style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
+                    style={{ width: "100%", maxHeight: "400px", objectFit: "cover" }}
                   />
                   <div className="mt-3">
                     <button className="btn btn-outline-secondary w-100" onClick={handleUndo}>
@@ -194,6 +272,82 @@ export default function SelectImagePage() {
           )}
         </div>
       </div>
+
+      {/* Virtual Closet Modal */}
+      {showClosetModal && (
+        <div 
+          className="modal show d-block" 
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowClosetModal(false)}
+        >
+          <div 
+            className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Choose from Virtual Closet</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowClosetModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {loadingCloset && (
+                  <div className="text-center py-4">
+                    <div className="spinner-border" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                )}
+                
+                {!loadingCloset && closetImages.length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-muted">Your virtual closet is empty. Generate some images first!</p>
+                  </div>
+                )}
+
+                {!loadingCloset && closetImages.length > 0 && (
+                  <div className="row g-3">
+                    {closetImages.map((url, index) => (
+                      <div key={index} className="col-6 col-md-4">
+                        <div 
+                          className="card shadow-sm cursor-pointer h-100"
+                          onClick={() => handleClosetImageClick(url)}
+                          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                          <img
+                            src={url}
+                            alt={`Closet item ${index + 1}`}
+                            className="card-img-top"
+                            style={{ 
+                              objectFit: 'cover', 
+                              height: '200px',
+                              width: '100%'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowClosetModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

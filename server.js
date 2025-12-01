@@ -14,6 +14,8 @@ import {
   authenticateToken,
   createDefaultStore
 } from './public/services/authService.js';
+import { requestLogger, errorLogger } from './public/middleware/loggingMiddleware.js';
+import { logImageGeneration, logExternalApiCall, logError } from './public/services/logger.js';
 
 const { PredictionServiceClient } = aiplatform.v1;
 const { helpers } = aiplatform;
@@ -51,6 +53,9 @@ const client = new vision.ImageAnnotatorClient();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Add request logging middleware
+app.use(requestLogger);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
@@ -112,9 +117,15 @@ async function cropObject(imageBuffer, boundingPoly, width, height) {
  * @returns {Promise<string>} Specific apparel label or original object name
  */
 async function getDetailedLabel(croppedBuffer, originalObjectName) {
+  const startTime = Date.now();
   const [{ labelAnnotations }] = await client.labelDetection({
     image: { content: croppedBuffer },
     maxResults: 50
+  });
+
+  logExternalApiCall('Vision API', 'labelDetection', {
+    duration: Date.now() - startTime,
+    originalObject: originalObjectName,
   });
 
   //debuging 
@@ -140,9 +151,13 @@ async function getDetailedLabel(croppedBuffer, originalObjectName) {
  *   - rgb {Object} - RGB color values {r, g, b}
  *   - hex {string} - Hexadecimal color string (e.g., '#ff5733') */
 async function getColorData(imageBuffer) {
-
+  const startTime = Date.now();
   const [{ imagePropertiesAnnotation }] = await client.imageProperties({
     image: { content: imageBuffer }
+  });
+
+  logExternalApiCall('Vision API', 'imageProperties', {
+    duration: Date.now() - startTime,
   });
 
 
@@ -167,9 +182,15 @@ async function getColorData(imageBuffer) {
  */
 
 async function getObjects(imageBuffer) {
+  const startTime = Date.now();
   const request = createVisionRequest(imageBuffer);
   const [result] = await client.objectLocalization(request);
   const objects = result.localizedObjectAnnotations;
+
+  logExternalApiCall('Vision API', 'objectLocalization', {
+    duration: Date.now() - startTime,
+    objectsDetected: objects?.length || 0,
+  });
 
   console.log('\n=== All detected objects ===');
   objects.forEach(obj => {
@@ -550,6 +571,7 @@ app.post('/auth/login', async (req, res) => {
 app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('No image uploaded.');
 
+  const requestStartTime = Date.now();
   try {
     let apparelData = await getObjects(req.file.buffer);
 
@@ -577,12 +599,26 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
       base64: generatedImage
     });
 
+    // Log successful image generation
+    logImageGeneration(req.user.email, {
+      query: userQuery,
+      apparelDetected: apparelData.map(a => a.label),
+      selectedApparel: selectedApparel?.label,
+      imageId,
+      duration: Date.now() - requestStartTime,
+    });
+
     res.json({ 
       image: generatedImage, 
       id: imageId, 
       timestamp: timestamp,
       shoppingLinks: shoppingLinks});
   } catch (error) {
+    logError(error, {
+      userId: req.user.email,
+      endpoint: '/recommend',
+      query: req.body.query,
+    });
     console.error('Error details:', error);
     console.error('Error stack:', error.stack);
     res.status(500).json({ 
@@ -615,5 +651,6 @@ app.get('/*splat', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Cloud Logging: ${process.env.GOOGLE_APPLICATION_CREDENTIALS ? 'Enabled' : 'Console only'}`);
 });
 
