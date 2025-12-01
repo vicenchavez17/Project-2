@@ -598,16 +598,11 @@ app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
   }
 });
 
-app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
-  try {
-    const images = await imageService.getImagesForUser(req.user.email);
-    res.json({ images });
-  } catch (err) {
-    console.error('Failed to fetch images for user:', err);
-    res.status(500).json({ error: 'Failed to fetch images' });
-  }
+app.get('/*splat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
 });
+
