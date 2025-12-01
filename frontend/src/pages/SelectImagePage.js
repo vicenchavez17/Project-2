@@ -185,6 +185,7 @@ export default function SelectImagePage() {
         state: {
           image: URL.createObjectURL(selectedFile),              // user uploaded preview
           prompt: inputText,                 // text user typed
+          shoppingLinks: data.shoppingLinks || [],  // shopping links from API
           results: {
             text: "Your generated image result:",
             images: ["data:image/png;base64," + data.image], // base64 output
