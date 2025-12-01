@@ -17,6 +17,43 @@ function App() {
 
   return (
     <BrowserRouter>
+      {/* Decorative corner accents */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '2px',
+        height: '40vh',
+        background: 'linear-gradient(180deg, #fe5163 0%, transparent 100%)',
+        zIndex: 0
+      }}></div>
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        width: '2px',
+        height: '40vh',
+        background: 'linear-gradient(180deg, #fe5163 0%, transparent 100%)',
+        zIndex: 0
+      }}></div>
+      <div style={{
+        position: 'fixed',
+        bottom: '60px',
+        left: 0,
+        width: '2px',
+        height: '30vh',
+        background: 'linear-gradient(0deg, #fe5163 0%, transparent 100%)',
+        zIndex: 0
+      }}></div>
+      <div style={{
+        position: 'fixed',
+        bottom: '60px',
+        right: 0,
+        width: '2px',
+        height: '30vh',
+        background: 'linear-gradient(0deg, #fe5163 0%, transparent 100%)',
+        zIndex: 0
+      }}></div>
 
       <div className="container mt-4 mb-5">
         <main className="flex-grow-1">

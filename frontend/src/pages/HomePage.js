@@ -19,6 +19,7 @@ export default function HomePage() {
         </div>
         <div className="col-12 col-md-6 text-start text-md-start text-light">
           <h3>Welcome to OutFit AI</h3>
+          <div className="accent-line"></div>
           <p>
             OutFit AI helps people find fresh clothing ideas using photos they already have. 
             Connect a photo and get curated item suggestions you can save or use for shopping.
@@ -38,6 +39,7 @@ export default function HomePage() {
         </div>
         <div className="col-12 col-md-6 text-start text-md-start text-light">
           <h3>AI Fashion Vision</h3>
+          <div className="accent-line"></div>
           <p>
             After signing in with Google Photos or Pintrest, you can upload any photo of yourself and we'll find the perfect match for you.
           </p>
