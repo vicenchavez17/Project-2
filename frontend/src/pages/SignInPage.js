@@ -50,12 +50,13 @@ export default function SignInPage() {
       const result = await postJSON("/auth/register", {
         fullName: newName,
         username: newUsername,
-        email: newEmail,
+        email: newEmail.toLowerCase(),
         password: newPassword,
       });
 
-      // success: backend returns a token
-      login(email, result.token);
+      // success: backend returns a token and user info
+      const username = result.user?.username || newUsername;
+      login(username, result.token);
 
       // Auto-fill the login form
       setEmail(newEmail);
@@ -83,12 +84,13 @@ export default function SignInPage() {
 
     try {
       const result = await postJSON("/auth/login", {
-        email,
+        email: email.toLowerCase(),
         password,
       });
 
       // Save token + user into context
-      login(email, result.token);
+      const username = result.user?.username || email.split('@')[0];
+      login(username, result.token);
 
       // Move to selectimage
       navigate("/selectimage");
