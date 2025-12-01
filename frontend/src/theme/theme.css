@@ -85,8 +85,13 @@ body::after {
 /* Example: Navbar adapts to theme */
 .navbar {
   border-top: 2px solid var(--main-color) !important;
-  position: relative;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
+  background-color: var(--bg-dark) !important;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .result-image {
@@ -107,4 +112,21 @@ body::after {
 .container {
   position: relative;
   z-index: 1;
+}
+
+/* Consistent page wrapper styling */
+.page-wrapper {
+  min-height: calc(100vh - 150px);
+  padding-top: 2rem;
+  padding-bottom: 180px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Page title styling */
+.page-title {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-weight: bold;
+  font-size: 2.5rem;
 }

@@ -4,8 +4,9 @@ import homeImage2 from "../assets/home/home2.png";
 
 export default function HomePage() {
   return (
-    <div className="container text-center my-5">
-      {/*<h1 className="mb-5">OutFit AI</h1>*/}
+    <div className="page-wrapper">
+      <div className="container text-center">
+        {/*<h1 className="page-title">OutFit AI</h1>*/}
 
       {/* Row 1: Image left, text right */}
       <div className="row align-items-center mb-5">
@@ -44,6 +45,7 @@ export default function HomePage() {
             After signing in with Google Photos or Pintrest, you can upload any photo of yourself and we'll find the perfect match for you.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

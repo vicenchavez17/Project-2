@@ -26,10 +26,11 @@ export default function ResultPage() {
   const resultImages = results.images || [];
 
   return (
-    <div className="container-fluid px-0" style={{ minHeight: "100vh" }}>
-      <div className="px-3 py-4" style={{ maxWidth: "1400px", margin: "0 auto" }}>
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 style={{ color: MAIN_COLOR, margin: 0 }}>Result</h1>
+    <div className="page-wrapper">
+      <div className="container-fluid px-0">
+        <div className="px-3" style={{ maxWidth: "1400px", margin: "0 auto" }}>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h1 className="page-title" style={{ margin: 0 }}>Result</h1>
           <div>
             <button
               className="btn btn-outline-secondary me-2"
@@ -142,6 +143,7 @@ export default function ResultPage() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

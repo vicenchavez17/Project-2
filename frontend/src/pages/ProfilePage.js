@@ -49,8 +49,9 @@ export default function ProfilePage() {
   }, [token]);
 
   return (
-    <div className="container my-5">
-      <h2 className="text-center mb-4">Your Saved Images</h2>
+    <div className="page-wrapper">
+      <div className="container">
+        <h1 className="page-title">Your Saved Images</h1>
 
       {loading && <p className="text-center">Loading...</p>}
 
@@ -76,6 +77,7 @@ export default function ProfilePage() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

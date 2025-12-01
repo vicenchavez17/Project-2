@@ -90,10 +90,11 @@ export default function SelectImagePage() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: "800px", paddingTop: "2rem" }}>
-      <div className="row justify-content-center">
-        <div className="col-12">
-          <h2 className="text-center mb-4">Dashboard</h2>
+    <div className="page-wrapper">
+      <div className="container" style={{ maxWidth: "800px" }}>
+        <div className="row justify-content-center">
+          <div className="col-12">
+            <h1 className="page-title">Dashboard</h1>
 
           {apiError && (
             <div className="alert alert-danger text-center mb-4">{apiError}</div>
@@ -192,6 +193,7 @@ export default function SelectImagePage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
