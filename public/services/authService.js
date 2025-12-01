@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { Datastore } from '@google-cloud/datastore';
 import { Storage } from '@google-cloud/storage';
+import { logAuthEvent, logWarning } from './logger.js';
 
 /**
  * Datastore-backed store so user auth data and generated images live in
@@ -97,6 +98,7 @@ export class AuthService {
     const normalizedEmail = email.toLowerCase();
     const existing = await this.store.getUser(normalizedEmail);
     if (existing) {
+      logWarning('Registration attempt for existing user', { email: normalizedEmail });
       throw new Error('User already exists');
     }
 
@@ -108,6 +110,7 @@ export class AuthService {
       password: hashed 
     });
 
+    logAuthEvent('REGISTRATION_SUCCESS', normalizedEmail, { username, fullName });
     return this.generateToken({ email });
   }
 
@@ -115,14 +118,17 @@ export class AuthService {
     const normalizedEmail = email.toLowerCase();
     const user = await this.store.getUser(normalizedEmail);
     if (!user) {
+      logWarning('Login attempt for non-existent user', { email: normalizedEmail });
       throw new Error('Invalid credentials');
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
+      logWarning('Login attempt with invalid password', { email: normalizedEmail });
       throw new Error('Invalid credentials');
     }
 
+    logAuthEvent('LOGIN_SUCCESS', normalizedEmail, { username: user.username });
     return {
       token: this.generateToken({ email: normalizedEmail }),
       username: user.username
