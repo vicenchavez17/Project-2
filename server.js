@@ -481,6 +481,28 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
+// Get current user profile
+app.get('/auth/me', authenticateToken(jwtSecret), async (req, res) => {
+  try {
+    console.log('GET /auth/me - req.user:', req.user);
+    const user = await store.getUser(req.user.email);
+    console.log('GET /auth/me - fetched user:', user);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    // Return user info without password
+    res.json({ 
+      user: {
+        email: user.email,
+        username: user.username,
+        fullName: user.fullName
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
 // Only authenticated users can generate + store their images.
 app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('No image uploaded.');

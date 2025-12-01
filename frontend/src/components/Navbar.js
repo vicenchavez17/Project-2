@@ -14,12 +14,6 @@ export default function Navbar() {
     navigate("/");
   };
 
-  useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
-  }, [user]);
-
   return (
     <nav className="navbar fixed-bottom border-top w-100 p-0">
       {/* Top row containing theme toggle + user info + logout */}
@@ -39,7 +33,7 @@ export default function Navbar() {
         <div className="d-flex align-items-center">
           {user && (
             <span className="me-3 fw-bold">
-              {user.username}
+              {user.username || user.email}
             </span>
           )}
 
@@ -61,7 +55,7 @@ export default function Navbar() {
         <NavItem to="/contact" label="Contact" />
 
         {user ? (
-          <NavItem to="/selectimage" label="Create" />
+          <NavItem to="/selectimage" label="Upload" />
         ) : (
           <NavItem to="/signin" label="Sign In" />
         )}

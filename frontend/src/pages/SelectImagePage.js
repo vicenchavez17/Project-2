@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 export default function SelectImagePage() {
   const [selectedImage, setSelectedImage] = useState(null); // base64 preview
@@ -9,6 +10,7 @@ export default function SelectImagePage() {
   const [apiError, setApiError] = useState("");
 
   const navigate = useNavigate();
+  const { token } = useContext(AuthContext);
 
   // Handle file upload
   const handleFileUpload = (e) => {
@@ -47,6 +49,11 @@ export default function SelectImagePage() {
       return;
     }
 
+    if (!token) {
+      setApiError("You must be logged in to use this feature.");
+      return;
+    }
+
     setLoading(true);
     setApiError("");
 
@@ -57,11 +64,15 @@ export default function SelectImagePage() {
 
       const response = await fetch("http://localhost:3000/recommend", {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("Server returned an error.");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Server returned an error.");
       }
 
       const data = await response.json();

@@ -11,21 +11,27 @@ export function AuthProvider({ children }) {
   // Initialize from persisted token (if any)
   useEffect(() => {
     const t = authClient.getToken();
+    console.log('AuthContext: initializing with token:', t ? 'exists' : 'none');
     if (t) {
       setTokenState(t);
       // fetch authoritative profile
       authClient
         .getProfile(t)
         .then((data) => {
+          console.log('AuthContext: profile fetched:', data);
+          console.log('AuthContext: user object:', data?.user);
+          console.log('AuthContext: username:', data?.user?.username);
           if (data && data.user) {
             setUser(data.user);
+            console.log('AuthContext: user state set to:', data.user);
             try {
               localStorage.setItem("user", JSON.stringify(data.user));
             } catch (e) {}
           }
         })
-        .catch(() => {
+        .catch((err) => {
           // invalid token; clear
+          console.error('AuthContext: profile fetch failed:', err);
           authClient.clearToken();
           setTokenState(null);
           setUser(null);
