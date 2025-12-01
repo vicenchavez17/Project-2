@@ -200,17 +200,29 @@ export class ImageService {
     const missing = [];
 
     // Check each image exists in the bucket; filter out missing objects
+    // and generate signed URLs for existing ones
     await Promise.all(images.map(async (img) => {
       try {
         const file = this.bucket.file(img.storagePath);
         const [exists] = await file.exists();
         if (exists) {
-          existing.push(img);
+          // Generate a signed URL that expires in 1 hour
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 60 * 60 * 1000, // 1 hour from now
+          });
+          
+          // Return the image with the signed URL instead of public URL
+          existing.push({
+            ...img,
+            url: signedUrl
+          });
         } else {
           missing.push(img);
         }
       } catch (e) {
         // on error, treat as missing to be safe
+        console.error('Error checking/signing image:', e);
         missing.push(img);
       }
     }));
