@@ -16,6 +16,8 @@ import {
 } from './public/services/authService.js';
 import { requestLogger, errorLogger } from './public/middleware/loggingMiddleware.js';
 import { logImageGeneration, logExternalApiCall, logError } from './public/services/logger.js';
+import twitterAuthRoutes from './public/socialMediaApi/routes/twitterAuthRoutes.js';
+import twitterMediaRoutes from './public/socialMediaApi/routes/twitterMediaRoutes.js';
 
 const { PredictionServiceClient } = aiplatform.v1;
 const { helpers } = aiplatform;
@@ -59,6 +61,8 @@ app.use(requestLogger);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
+  app.use('/twitter', twitterAuthRoutes);
+  app.use('/twitter', twitterMediaRoutes);
   app.use(express.static(path.join(__dirname, 'frontend', 'build')));
 }
 

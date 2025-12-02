@@ -12,6 +12,7 @@
     "dev": "set PORT=3001&& node server.js",
     "client": "cd frontend && npm start",
     "build": "cd frontend && npm run build",
+    "gcp-build": "echo 'Using pre-built frontend from frontend/build'",
     "prod": "set NODE_ENV=production&& node server.js"
   },
   "dependencies": {
