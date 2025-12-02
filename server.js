@@ -606,6 +606,11 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
       selectedApparel: selectedApparel?.label,
       imageId,
       duration: Date.now() - requestStartTime,
+      shoppingLinks: shoppingLinks.map(link => ({
+        url: link.url,
+        title: link.title
+      })),
+      shoppingLinksCount: shoppingLinks.length,
     });
 
     res.json({ 
