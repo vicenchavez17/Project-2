@@ -293,6 +293,7 @@ export default function SelectImagePage() {
       {selectedFile && (
         <div className="text-center mt-4">
           <h4>Selected Image</h4>
+          {apiError && (<div className="alert alert-danger text-center mb-4">{apiError}</div>)}
           <img
             src={URL.createObjectURL(selectedFile)}
             alt="Selected"
@@ -342,4 +343,5 @@ export default function SelectImagePage() {
       )}
     </div>
   );
+
 }
