@@ -23,8 +23,7 @@ export default function AboutPage() {
                 Daniel
               </h5>
               <p className="card-text">
-                Hi, my name is Daniel. I designed the front-end of the website and assisted in comming up with the idea.
-              </p>
+                  Daniel is our computer vision specialist who developed the core image analysis solutions. Using Vision and Gemini APIs, he created the intelligent systems that power our selfie analysis features.              </p>
             </div>
           </div>
         </div>
@@ -42,7 +41,7 @@ export default function AboutPage() {
                 Tim
               </h5>
               <p className="card-text">
-                Hi, I'm Tim. I designed the website and helped come up with the idea.
+                  Tim handled all front-end development, crafting an intuitive user interface that makes our platform easy to use. He also integrated social media functionality to enhance user engagement and sharing capabilities.
               </p>
             </div>
           </div>
@@ -61,7 +60,7 @@ export default function AboutPage() {
                 Vincente
               </h5>
               <p className="card-text">
-                Hi, I'm Vincente. I came up with the idea and handled the backend.
+                  Vicente built our secure backend infrastructure, implementing robust user authentication and storage solutions. His work ensures that user data remains protected while maintaining seamless access to our platform.
               </p>
             </div>
           </div>
