@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twitter Authentication</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .success {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    .error {
+      background: rgba(220, 38, 38, 0.9);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <h2>Connecting Twitter...</h2>
+    <p id="status">Please wait while we complete the authentication.</p>
+  </div>
+
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const accessToken = params.get('twitterAccess');
+      const userId = params.get('twitterUserId');
+      const error = params.get('error');
+
+      const statusEl = document.getElementById('status');
+
+      if (error) {
+        // Authentication failed
+        statusEl.parentElement.querySelector('.spinner').style.display = 'none';
+        statusEl.innerHTML = `
+          <div class="error">
+            <strong>❌ Authentication Failed</strong><br>
+            ${error}<br><br>
+            This window will close automatically.
+          </div>
+        `;
+
+        // Send error to parent window
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'TWITTER_AUTH_ERROR',
+            error: error
+          }, window.location.origin);
+        }
+
+        // Close popup after 2 seconds
+        setTimeout(() => window.close(), 2000);
+        return;
+      }
+
+      if (accessToken && userId) {
+        // Authentication successful!
+        statusEl.parentElement.querySelector('.spinner').style.display = 'none';
+        statusEl.innerHTML = `
+          <div class="success">✅</div>
+          <strong>Success!</strong><br>
+          Twitter connected successfully.<br><br>
+          Loading your images...
+        `;
+
+        // Send credentials to parent window
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'TWITTER_AUTH_SUCCESS',
+            accessToken: accessToken,
+            userId: userId
+          }, window.location.origin);
+        }
+
+        // Close popup after 1 second
+        setTimeout(() => window.close(), 1000);
+      } else {
+        // Missing parameters
+        statusEl.parentElement.querySelector('.spinner').style.display = 'none';
+        statusEl.innerHTML = `
+          <div class="error">
+            <strong>⚠️ Missing Parameters</strong><br>
+            Something went wrong during authentication.<br><br>
+            This window will close automatically.
+          </div>
+        `;
+
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'TWITTER_AUTH_ERROR',
+            error: 'Missing authentication parameters'
+          }, window.location.origin);
+        }
+
+        setTimeout(() => window.close(), 2000);
+      }
+    })();
+  </script>
+</body>
+</html>
