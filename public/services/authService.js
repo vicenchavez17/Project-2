@@ -250,71 +250,45 @@ export class ImageService {
 
     if (!this.bucket) return images;
 
-    const existing = [];
-    const missing = [];
-
-    // Check each image exists in the bucket; filter out missing objects
-    // and generate signed URLs for existing ones
-    await Promise.all(images.map(async (img) => {
+    // Generate signed URLs for all images in parallel without checking existence first
+    // This significantly reduces API calls from 2 per image to 1 per image
+    const signedImages = await Promise.all(images.map(async (img) => {
       try {
         const file = this.bucket.file(img.storagePath);
-        const [exists] = await file.exists();
-        if (exists) {
-          // Generate a signed URL that expires in 1 hour
-          const [signedUrl] = await file.getSignedUrl({
-            action: 'read',
-            expires: Date.now() + 60 * 60 * 1000, // 1 hour from now
-          });
-          
-          // Return the image with the signed URL instead of public URL
-          existing.push({
-            ...img,
-            url: signedUrl
-          });
-        } else {
-          logger.warn('Image file not found in bucket', {
-            user: email,
-            imageId: img.id,
-            storagePath: img.storagePath
-          });
-          missing.push(img);
-        }
+        
+        // Generate a signed URL that expires in 1 hour
+        // Skip the exists() check - if file doesn't exist, the URL will return 404 when accessed
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 60 * 60 * 1000, // 1 hour from now
+        });
+        
+        // Return the image with the signed URL instead of public URL
+        return {
+          ...img,
+          url: signedUrl
+        };
       } catch (e) {
-        // on error, treat as missing to be safe
-        logger.error('Error checking/signing image from bucket', {
+        // Log error but return the image with the public URL as fallback
+        logger.error('Error generating signed URL for image', {
           user: email,
           imageId: img.id,
           storagePath: img.storagePath,
           error: e.message,
           errorCode: e.code
         });
-        missing.push(img);
+        // Return with original public URL as fallback
+        return img;
       }
     }));
-
-    // If there are missing entries, persist the cleaned list back to Datastore
-    if (missing.length > 0) {
-      try {
-        // store may be DatastoreStore which provides setImages
-        if (typeof this.store.setImages === 'function') {
-          await this.store.setImages(email, existing);
-        }
-      } catch (e) {
-        logger.error('Failed to update stored images after pruning', {
-          user: email,
-          error: e.message
-        });
-      }
-    }
 
     logger.info('Images loaded from Google Cloud Storage', {
       user: email,
       totalInDatastore: images.length,
-      existingInBucket: existing.length,
-      missingFromBucket: missing.length
+      signedUrlsGenerated: signedImages.length
     });
 
-    return existing;
+    return signedImages;
   }
 }
 

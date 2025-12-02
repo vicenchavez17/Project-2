@@ -12,7 +12,7 @@ export default function ResultPage() {
   // Expecting location.state = { image: <dataUrl or url>, prompt: "...", shoppingLinks: [...], results: { text: "...", images: [url,...] } }
   // For now many callers will only set image & prompt; we provide sensible defaults.
   const originalImage = location.state?.image || null;
-  const prompt = location.state?.prompt || "No prompt provided.";
+  const prompt = location.state?.prompt;
   const shoppingLinks = location.state?.shoppingLinks || [];
   const results = location.state?.results || {
     text:
@@ -54,7 +54,7 @@ export default function ResultPage() {
             <div>
               <h1 className="page-title" style={{ margin: 0, marginBottom: "0.5rem" }}>Your Result</h1>
               <p style={{ color: "#999", margin: 0, fontSize: "0.95rem" }}>
-                {prompt || "Your AI-generated outfit recommendation"}
+                {prompt ? 'Prompt: ' + prompt : 'No prompt provided.'}
               </p>
             </div>
             <div>
@@ -75,7 +75,7 @@ export default function ResultPage() {
                   e.currentTarget.style.color = MAIN_COLOR;
                 }}
               >
-                ← Back to Dashboard
+                ← Create Another?
               </button>
             </div>
           </div>
@@ -507,4 +507,5 @@ export default function ResultPage() {
     </div>
   );
 }
+
  
