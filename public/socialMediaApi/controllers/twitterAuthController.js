@@ -1,4 +1,5 @@
 import { twitterAuthService } from "../services/twitterAuthService.js";
+import logger from "../../services/logger.js";
 
 export const twitterAuthController = {
   beginAuth(req, res) {
@@ -22,7 +23,7 @@ export const twitterAuthController = {
         const redirectUrl = `/twitter-callback.html?twitterAccess=${tokenData.access_token}&twitterUserId=${userInfo.id}`;
         res.redirect(redirectUrl);
     } catch (err) {
-        console.error("Callback error:", err);
+        logger.error('Twitter OAuth callback error', { error: err.message });
         res.redirect(`/twitter-callback.html?error=${encodeURIComponent(err.message)}`);
     }
   }

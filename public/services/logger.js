@@ -71,14 +71,28 @@ export function logImageGeneration(userId, metadata = {}) {
 }
 
 /**
- * Log API calls to external services (Vision API, AI Platform)
+ * Log API calls to external services (Vision API, AI Platform, Twitter, etc.)
+ * @param {string} service - Name of the external service (e.g., 'Vision API', 'Twitter API')
+ * @param {string} operation - Specific operation performed (e.g., 'labelDetection', 'getUserMedia')
+ * @param {Object} metadata - Additional data including:
+ *   - duration: Response time in milliseconds
+ *   - success: Boolean indicating if call was successful
+ *   - statusCode: HTTP status code if applicable
+ *   - errorMessage: Error message if failed
+ *   - Any other relevant context
  */
 export function logExternalApiCall(service, operation, metadata = {}) {
-  logger.info(`External API Call: ${service} - ${operation}`, {
+  const logLevel = metadata.success === false ? 'error' : 'info';
+  const message = metadata.success === false 
+    ? `External API Call Failed: ${service} - ${operation}`
+    : `External API Call: ${service} - ${operation}`;
+  
+  logger[logLevel](message, {
     activityType: 'EXTERNAL_API_CALL',
     service,
     operation,
     category: 'api',
+    timestamp: new Date().toISOString(),
     ...metadata,
   });
 }
