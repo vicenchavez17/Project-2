@@ -49,38 +49,25 @@ export class DatastoreStore {
    * Add an image entry to the user's images array using a transaction to avoid races.
    * image should be a plain JS object (e.g. { id, timestamp, base64 })
    */
-  async addImage(email, image) {
-    const key = this._imageKey(email);
-    const transaction = this.datastore.transaction();
-    try {
-      await transaction.run();
-      const [entity] = await transaction.get(key);
-      const current = (entity && Array.isArray(entity.images)) ? entity.images : [];
-      const updated = [image, ...current]; // newest first
-      
-      // Must await the save operation before committing
-      await transaction.save({ key, data: { images: updated } });
-      await transaction.commit();
-      
-      logger.info('Image metadata saved to Datastore via transaction', {
-        user: email,
-        imageId: image.id,
-        totalImages: updated.length
-      });
-      
-      return image;
-    } catch (err) {
-      logger.error('Failed to save image metadata to Datastore', {
-        user: email,
-        imageId: image?.id,
-        error: err.message,
-        stack: err.stack
-      });
-      // ensure transaction is rolled back on error
-      try { await transaction.rollback(); } catch (e) { /* ignore */ }
-      throw err;
-    }
+async addImage(email, image) {
+  const key = this._imageKey(email);
+  const transaction = this.datastore.transaction();
+  try {
+    console.log(`[DATASTORE] Starting addImage for ${email}, imageId: ${image.id}`);
+    await transaction.run();
+    const [entity] = await transaction.get(key);
+    const current = (entity && Array.isArray(entity.images)) ? entity.images : [];
+    const updated = [image, ...current];
+    transaction.save({ key, data: { images: updated } });
+    await transaction.commit();
+    console.log(`[DATASTORE] Successfully saved image for ${email}`);
+    return image;
+  } catch (err) {
+    console.error(`[DATASTORE ERROR] Failed to save image for ${email}:`, err);
+    try { await transaction.rollback(); } catch (e) { /* ignore */ }
+    throw err;
   }
+}
 
   async getImages(email) {
     const key = this._imageKey(email);

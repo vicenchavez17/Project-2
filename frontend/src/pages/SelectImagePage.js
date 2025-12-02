@@ -19,6 +19,19 @@ export default function SelectImagePage() {
   const [twitterUserId, setTwitterUserId] = useState(null);
 
   //
+  // Check for cached Twitter credentials on mount
+  //
+  useEffect(() => {
+    const cachedToken = localStorage.getItem('twitterAccess');
+    const cachedUserId = localStorage.getItem('twitterUserId');
+    
+    if (cachedToken && cachedUserId) {
+      setTwitterAccess(cachedToken);
+      setTwitterUserId(cachedUserId);
+    }
+  }, []);
+
+  //
   // Listen for messages from the popup window
   //
   useEffect(() => {
@@ -32,6 +45,10 @@ export default function SelectImagePage() {
         
         setTwitterAccess(accessToken);
         setTwitterUserId(userId);
+        
+        // Cache in localStorage so user doesn't need to re-authenticate
+        localStorage.setItem('twitterAccess', accessToken);
+        localStorage.setItem('twitterUserId', userId);
         
         // Fetch images immediately
         fetchTwitterImages(accessToken, userId);

@@ -1,6 +1,7 @@
 import React from "react";
-import homeImage1 from "../assets/home/home1.png";
-import homeImage2 from "../assets/home/home2.png";
+import homeImage1 from "../assets/home/homePage1.png";
+import homeImage2 from "../assets/home/homePage3.png";
+import homeImage3 from "../assets/home/homePage2.png";
 
 export default function HomePage() {
   return (
@@ -42,7 +43,7 @@ export default function HomePage() {
           <h3>AI Fashion Vision</h3>
           <div className="accent-line"></div>
           <p>
-            After signing in with Google Photos or Pintrest, you can upload any photo of yourself and we'll find the perfect match for you.
+              Sign in with X/Twitter to upload any selfies and we'll recommend you something from that selfie.
           </p>
         </div>
       </div>
@@ -50,27 +51,23 @@ export default function HomePage() {
       {/* Row 3: Image left, text right */}
       <div className="row align-items-center py-4">
         <div className="col-12 col-md-6 mb-3 mb-md-0 pe-md-4">
-          <div 
+          <img
+            src={homeImage3}
             className="rounded border border-danger d-flex align-items-center justify-content-center"
             style={{ 
               height: "350px",
               width: "100%",
               backgroundColor: "#2a2a3e"
             }}
-          >
-            <div className="text-center text-light p-4">
-              <i className="bi bi-archive" style={{ fontSize: "4rem" }}></i>
-              <p className="mt-3">Virtual Closet Image</p>
-            </div>
-          </div>
+          />
         </div>
         <div className="col-12 col-md-6 text-start text-md-start text-light ps-md-4">
           <h3>Your Virtual Closet</h3>
           <div className="accent-line"></div>
           <p>
             All your generated outfit recommendations are automatically saved to your virtual closet. 
-            Access your collection anytime to revisit your favorite looks, compare different styles, 
-            or continue shopping for items you loved. Your fashion inspiration is always just a click away!
+            Access your collection anytime to revisit your favorite looks and compare different styles 
+            Your fashion inspiration is always just a click away!
           </p>
         </div>
       </div>
