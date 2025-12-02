@@ -635,11 +635,14 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
 
 app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
   try {
+    console.log(`Fetching images for user: ${req.user.email}`);
     const images = await imageService.getImagesForUser(req.user.email);
+    console.log(`Found ${images.length} images for user ${req.user.email}`);
     res.json({ images });
   } catch (err) {
     console.error('Failed to fetch images for user:', err);
-    res.status(500).json({ error: 'Failed to fetch images' });
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ error: 'Failed to fetch images', details: err.message });
   }
 });
 
