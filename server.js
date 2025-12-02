@@ -16,6 +16,7 @@ import {
 } from './public/services/authService.js';
 import { requestLogger, errorLogger } from './public/middleware/loggingMiddleware.js';
 import { logImageGeneration, logExternalApiCall, logError } from './public/services/logger.js';
+import logger from './public/services/logger.js';
 import twitterAuthRoutes from './public/socialMediaApi/routes/twitterAuthRoutes.js';
 import twitterMediaRoutes from './public/socialMediaApi/routes/twitterMediaRoutes.js';
 
@@ -122,29 +123,44 @@ async function cropObject(imageBuffer, boundingPoly, width, height) {
  */
 async function getDetailedLabel(croppedBuffer, originalObjectName) {
   const startTime = Date.now();
-  const [{ labelAnnotations }] = await client.labelDetection({
-    image: { content: croppedBuffer },
-    maxResults: 50
-  });
-
-  logExternalApiCall('Vision API', 'labelDetection', {
-    duration: Date.now() - startTime,
-    originalObject: originalObjectName,
-  });
-
-  //debuging 
-  console.log(`\nLabels for ${originalObjectName}:`, labelAnnotations.slice(0, 10).map(l => l.description));
-
-  const label = labelAnnotations.find(l => {
-    const desc = l.description.toLowerCase();
-    return APPAREL_WHITE_LIST.some(term => desc.includes(term));
-  });
-
-  //chose original label if unkown
-  const finalLabel = label?.description || originalObjectName || 'unknown';
-  console.log(`Final label: ${finalLabel}\n`);
   
-  return finalLabel;
+  try {
+    const [{ labelAnnotations }] = await client.labelDetection({
+      image: { content: croppedBuffer },
+      maxResults: 50
+    });
+
+    logExternalApiCall('Vision API', 'labelDetection', {
+      duration: Date.now() - startTime,
+      success: true,
+      originalObject: originalObjectName,
+      labelsFound: labelAnnotations?.length || 0
+    });
+
+    // Debug: Log detected labels (only in development)
+    logger.debug(`Labels for ${originalObjectName}`, { 
+      labels: labelAnnotations.slice(0, 10).map(l => l.description) 
+    });
+
+    const label = labelAnnotations.find(l => {
+      const desc = l.description.toLowerCase();
+      return APPAREL_WHITE_LIST.some(term => desc.includes(term));
+    });
+
+    // Choose original label if unknown
+    const finalLabel = label?.description || originalObjectName || 'unknown';
+    logger.debug(`Final label selected: ${finalLabel}`);
+    
+    return finalLabel;
+  } catch (error) {
+    logExternalApiCall('Vision API', 'labelDetection', {
+      duration: Date.now() - startTime,
+      success: false,
+      originalObject: originalObjectName,
+      errorMessage: error.message
+    });
+    throw error;
+  }
 }
 
 /**
@@ -156,28 +172,39 @@ async function getDetailedLabel(croppedBuffer, originalObjectName) {
  *   - hex {string} - Hexadecimal color string (e.g., '#ff5733') */
 async function getColorData(imageBuffer) {
   const startTime = Date.now();
-  const [{ imagePropertiesAnnotation }] = await client.imageProperties({
-    image: { content: imageBuffer }
-  });
+  
+  try {
+    const [{ imagePropertiesAnnotation }] = await client.imageProperties({
+      image: { content: imageBuffer }
+    });
 
-  logExternalApiCall('Vision API', 'imageProperties', {
-    duration: Date.now() - startTime,
-  });
+    logExternalApiCall('Vision API', 'imageProperties', {
+      duration: Date.now() - startTime,
+      success: true,
+      colorsFound: imagePropertiesAnnotation?.dominantColors?.colors?.length || 0
+    });
 
+    const color = imagePropertiesAnnotation.dominantColors.colors[0].color;
+    const r = color.red || 0;
+    const g = color.green || 0;
+    const b = color.blue || 0;
 
-  const color = imagePropertiesAnnotation.dominantColors.colors[0].color;
-  const r = color.red || 0;
-  const g = color.green || 0;
-  const b = color.blue || 0;
+    const hex = rgbToHex(r, g, b);
+    const colorName = ntc.name(hex)[1];
 
-  const hex = rgbToHex(r, g, b);
-  const colorName = ntc.name(hex)[1];
-
-  return {
-    colorName: colorName,
-    rgb: {r, g, b},
-    hex: hex
-  };
+    return {
+      colorName: colorName,
+      rgb: {r, g, b},
+      hex: hex
+    };
+  } catch (error) {
+    logExternalApiCall('Vision API', 'imageProperties', {
+      duration: Date.now() - startTime,
+      success: false,
+      errorMessage: error.message
+    });
+    throw error;
+  }
 }
  /**
  * Detects apparel objects in an image and extracts their labels and color data
@@ -188,52 +215,62 @@ async function getColorData(imageBuffer) {
 async function getObjects(imageBuffer) {
   const startTime = Date.now();
   const request = createVisionRequest(imageBuffer);
-  const [result] = await client.objectLocalization(request);
-  const objects = result.localizedObjectAnnotations;
-
-  logExternalApiCall('Vision API', 'objectLocalization', {
-    duration: Date.now() - startTime,
-    objectsDetected: objects?.length || 0,
-  });
-
-  console.log('\n=== All detected objects ===');
-  objects.forEach(obj => {
-    console.log(`  ${obj.name} (confidence: ${obj.score.toFixed(2)})`);
-  });
-  console.log('===========================\n');
-
-  const apparelItems = objects.filter(obj => isApparel(obj.name));
-
-  //get unique apparel to avoid duplicate objects being detected by vision api
-  const uniqueApparel = [];
-  const seenTypes = new Set();
   
-  for (const item of apparelItems) {
-    if (!seenTypes.has(item.name)) {
-      uniqueApparel.push(item);
-      seenTypes.add(item.name);
-    }
-  }
-  
-  const { width, height } = await sharp(imageBuffer).metadata();
+  try {
+    const [result] = await client.objectLocalization(request);
+    const objects = result.localizedObjectAnnotations;
 
-  const apparelData = [];
-
-  for (const object of uniqueApparel) {
-    const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
-    const label = await getDetailedLabel(croppedBuffer, object.name);
-    const colorData = await getColorData(croppedBuffer);
-
-    apparelData.push({
-      label: label,
-      colorName: colorData.colorName,
-      rgb: colorData.rgb,
-      hex: colorData.hex
+    logExternalApiCall('Vision API', 'objectLocalization', {
+      duration: Date.now() - startTime,
+      success: true,
+      objectsDetected: objects?.length || 0,
     });
 
-  }
+    // Debug: Log all detected objects (only in development)
+    logger.debug('Detected objects', { 
+      objects: objects.map(obj => ({ name: obj.name, confidence: obj.score.toFixed(2) }))
+    });
 
-  return apparelData;
+    const apparelItems = objects.filter(obj => isApparel(obj.name));
+
+    //get unique apparel to avoid duplicate objects being detected by vision api
+    const uniqueApparel = [];
+    const seenTypes = new Set();
+    
+    for (const item of apparelItems) {
+      if (!seenTypes.has(item.name)) {
+        uniqueApparel.push(item);
+        seenTypes.add(item.name);
+      }
+    }
+    
+    const { width, height } = await sharp(imageBuffer).metadata();
+
+    const apparelData = [];
+
+    for (const object of uniqueApparel) {
+      const croppedBuffer = await cropObject(imageBuffer, object.boundingPoly, width, height);
+      const label = await getDetailedLabel(croppedBuffer, object.name);
+      const colorData = await getColorData(croppedBuffer);
+
+      apparelData.push({
+        label: label,
+        colorName: colorData.colorName,
+        rgb: colorData.rgb,
+        hex: colorData.hex
+      });
+
+    }
+
+    return apparelData;
+  } catch (error) {
+    logExternalApiCall('Vision API', 'objectLocalization', {
+      duration: Date.now() - startTime,
+      success: false,
+      errorMessage: error.message
+    });
+    throw error;
+  }
 }
 
 /**
@@ -250,12 +287,12 @@ function findClosestApparel(apparelData, userQuery) {
   
   // If no query, return first item
   if (!userQuery || userQuery.trim() === '') {
-    console.log('No query provided, returning first item:', apparelData[0].label);
+    logger.debug('No query provided, returning first item', { label: apparelData[0].label });
     return apparelData[0];
   }
 
   const query = userQuery.toLowerCase().trim();
-  console.log('\n=== Finding closest apparel for query:', query, '===');
+  logger.debug('Finding closest apparel match', { query, availableItems: apparelData.map(a => a.label) });
   
   // score each apparel item based on querry
   const scoredItems = apparelData.map(item => {
@@ -323,7 +360,7 @@ function findClosestApparel(apparelData, userQuery) {
   
   // if score 0 return null, do not generate image.
   if (selected.score === 0) {
-    console.log(`no ${query} object found`);
+    logger.debug(`No matching ${query} object found`);
     return null;
   }
   return selected.item;
@@ -370,7 +407,10 @@ async function recolorImage(imageBuffer, targetRgb) {
   const shiftG = targetRgb.g - avgG;
   const shiftB = targetRgb.b - avgB;
   
-  console.log(`Recoloring: RGB(${Math.round(avgR)}, ${Math.round(avgG)}, ${Math.round(avgB)}) -> RGB(${targetRgb.r}, ${targetRgb.g}, ${targetRgb.b})`);
+  logger.debug('Recoloring image', { 
+    from: `RGB(${Math.round(avgR)}, ${Math.round(avgG)}, ${Math.round(avgB)})`,
+    to: `RGB(${targetRgb.r}, ${targetRgb.g}, ${targetRgb.b})`
+  });
   
   // some code i needed to stop the the whole image from being black if apparel is black
   for (let i = 0; i < data.length; i += info.channels) {
@@ -419,7 +459,10 @@ async function generateImage(apparelData, userQuery) {
   // Work around I found that applies accurate color beside generic ('green', 'yellow', etc.)is to to make a blank apparel image and then to apply
   // color to it later.
   const imagePrompt = `A ${NEUTRAL_COLOR} ${apparel.label} with the hex color ${NEUTRAL_HEX} laid flat on a pure white background, product photography style.`;
-  console.log(`Generating ${apparel.label}, will recolor to ${apparel.colorName} ${apparel.hex}`);
+  logger.debug('Generating image', { 
+    apparel: apparel.label, 
+    targetColor: `${apparel.colorName} ${apparel.hex}` 
+  });
 
   const projectID = process.env.GOOGLE_CLOUD_PROJECT;
   const location = 'us-central1';
@@ -435,35 +478,72 @@ async function generateImage(apparelData, userQuery) {
     parameters: parametersValue,
   };
 
+  const startTime = Date.now();
   
-  const [response] = await aiClient.predict(request);
-  
-  
-  if (response.predictions && response.predictions.length > 0) {
-    const prediction = response.predictions[0];
+  try {
+    const [response] = await aiClient.predict(request);
+    const duration = Date.now() - startTime;
     
-    let base64Image;
-    if (prediction.structValue) {
-      base64Image = prediction.structValue.fields.bytesBase64Encoded.stringValue;
-    } else if (prediction.bytesBase64Encoded) {
-      base64Image = prediction.bytesBase64Encoded;
-    } else {
-      const decoded = helpers.fromValue(prediction);
-      base64Image = decoded.bytesBase64Encoded;
+    if (response.predictions && response.predictions.length > 0) {
+      const prediction = response.predictions[0];
+      
+      let base64Image;
+      if (prediction.structValue) {
+        base64Image = prediction.structValue.fields.bytesBase64Encoded.stringValue;
+      } else if (prediction.bytesBase64Encoded) {
+        base64Image = prediction.bytesBase64Encoded;
+      } else {
+        const decoded = helpers.fromValue(prediction);
+        base64Image = decoded.bytesBase64Encoded;
+      }
+      
+      if (!base64Image) {
+        logExternalApiCall('Vertex AI', 'imageGeneration', {
+          duration,
+          success: false,
+          prompt: imagePrompt,
+          apparelLabel: apparel.label,
+          errorMessage: 'No base64 image in prediction'
+        });
+        throw new Error('No base64 image in prediction');
+      }
+      
+      // recolor the generated image to match target color
+      const imageBuffer = Buffer.from(base64Image, 'base64');
+      const recoloredBuffer = await recolorImage(imageBuffer, apparel.rgb);
+      
+      logExternalApiCall('Vertex AI', 'imageGeneration', {
+        duration,
+        success: true,
+        prompt: imagePrompt,
+        apparelLabel: apparel.label,
+        targetColor: apparel.colorName,
+        model: 'imagegeneration@006'
+      });
+      
+      return recoloredBuffer.toString('base64');
     }
     
-    if (!base64Image) {
-      throw new Error('No base64 image in prediction');
-    }
-    
-    // recolor the generated image to match target color
-    const imageBuffer = Buffer.from(base64Image, 'base64');
-    const recoloredBuffer = await recolorImage(imageBuffer, apparel.rgb);
-    return recoloredBuffer.toString('base64');
+    logExternalApiCall('Vertex AI', 'imageGeneration', {
+      duration,
+      success: false,
+      prompt: imagePrompt,
+      apparelLabel: apparel.label,
+      errorMessage: 'No predictions returned'
+    });
+    logger.error('No predictions in response', { response });
+    throw new Error('No predictions returned');
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logExternalApiCall('Vertex AI', 'imageGeneration', {
+      duration,
+      success: false,
+      prompt: imagePrompt,
+      apparelLabel: apparel.label,
+      errorMessage: error.message
+    });
+    throw error;
   }
-  
-  console.error('No predictions in response:', response);
-  throw new Error('No predictions returned');
 }
 
 /**
@@ -580,7 +660,7 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
     let apparelData = await getObjects(req.file.buffer);
 
     const userQuery = req.body.query || '';
-    console.log(`User query received: "${userQuery}"`);
+    logger.debug('Processing recommendation request', { query: userQuery });
     
     // Find the matching apparel first
     const selectedApparel = findClosestApparel(apparelData, userQuery);
@@ -623,8 +703,6 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
       endpoint: '/recommend',
       query: req.body.query,
     });
-    console.error('Error details:', error);
-    console.error('Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Error generating image',
       message: error.message,
@@ -634,14 +712,25 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
 });
 
 app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
+  const startTime = Date.now();
   try {
-    console.log(`Fetching images for user: ${req.user.email}`);
+    logger.debug('Fetching images', { user: req.user.email });
     const images = await imageService.getImagesForUser(req.user.email);
-    console.log(`Found ${images.length} images for user ${req.user.email}`);
+    const duration = Date.now() - startTime;
+    logger.info('Images retrieved successfully', { 
+      user: req.user.email, 
+      count: images.length,
+      duration 
+    });
     res.json({ images });
   } catch (err) {
-    console.error('Failed to fetch images for user:', err);
-    console.error('Error stack:', err.stack);
+    const duration = Date.now() - startTime;
+    logger.error('Failed to fetch images for user', { 
+      user: req.user?.email || 'unknown', 
+      error: err.message, 
+      stack: err.stack,
+      duration
+    });
     res.status(500).json({ error: 'Failed to fetch images', details: err.message });
   }
 });
