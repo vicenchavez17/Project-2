@@ -17,6 +17,7 @@ import {
 import { requestLogger, errorLogger } from './public/middleware/loggingMiddleware.js';
 import { logImageGeneration, logExternalApiCall, logError } from './public/services/logger.js';
 import logger from './public/services/logger.js';
+import { logAnalyticsEvent } from './public/services/analyticsService.js';
 import twitterAuthRoutes from './public/socialMediaApi/routes/twitterAuthRoutes.js';
 import twitterMediaRoutes from './public/socialMediaApi/routes/twitterMediaRoutes.js';
 
@@ -620,6 +621,28 @@ app.get('/', (req,res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Analytics event endpoint
+app.post('/analytics/event', express.json(), async (req, res) => {
+  try {
+    const { eventName, timestamp, ...eventData } = req.body;
+    
+    if (!eventName) {
+      return res.status(400).json({ error: 'Event name is required' });
+    }
+    
+    // Log the analytics event
+    logAnalyticsEvent(eventName, {
+      timestamp,
+      ...eventData,
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Analytics error:', err);
+    res.status(500).json({ error: 'Failed to log analytics event' });
+  }
+});
+
 // --- Auth + image routes ---
 app.post('/auth/register', async (req, res) => {
   const { fullName, username, email, password } = req.body;
@@ -712,24 +735,16 @@ app.post('/recommend', authenticateToken(jwtSecret), upload.single('image'), asy
 });
 
 app.get('/images', authenticateToken(jwtSecret), async (req, res) => {
-  const startTime = Date.now();
   try {
     logger.debug('Fetching images', { user: req.user.email });
     const images = await imageService.getImagesForUser(req.user.email);
-    const duration = Date.now() - startTime;
-    logger.info('Images retrieved successfully', { 
-      user: req.user.email, 
-      count: images.length,
-      duration 
-    });
+    logger.debug('Images retrieved', { user: req.user.email, count: images.length });
     res.json({ images });
   } catch (err) {
-    const duration = Date.now() - startTime;
     logger.error('Failed to fetch images for user', { 
-      user: req.user?.email || 'unknown', 
+      user: req.user.email, 
       error: err.message, 
-      stack: err.stack,
-      duration
+      stack: err.stack 
     });
     res.status(500).json({ error: 'Failed to fetch images', details: err.message });
   }

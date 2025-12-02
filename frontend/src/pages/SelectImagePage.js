@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from 'react-router-dom';
+import { 
+  trackGenerationStart, 
+  trackGenerationComplete, 
+  trackTwitterConnect,
+  trackError 
+} from '../utils/analytics';
 
 export default function SelectImagePage() {
   const { user, token } = useContext(AuthContext);
@@ -64,6 +70,10 @@ export default function SelectImagePage() {
 
     if (!popup) {
       setTwitterError("Please allow popups for this site to connect Twitter");
+    } else {
+      // Track Twitter connect attempt
+      const userId = user?.email || 'anonymous';
+      trackTwitterConnect(userId);
     }
   };
 
@@ -158,8 +168,14 @@ export default function SelectImagePage() {
       return;
     }
     
+    const startTime = Date.now();
     setLoading(true);
     setApiError("");
+    
+    // Track generation start
+    const userId = user?.email || 'anonymous';
+    const imageSource = selectedImage?.includes('twimg.com') ? 'twitter' : 'upload';
+    trackGenerationStart(userId, imageSource);
     
     try {
       const formData = new FormData();
@@ -180,6 +196,10 @@ export default function SelectImagePage() {
       }
       
       const data = await response.json();
+      
+      // Track successful generation
+      const duration = Date.now() - startTime;
+      trackGenerationComplete(userId, duration, true);
 
       navigate("/result", {
         state: {
@@ -190,11 +210,17 @@ export default function SelectImagePage() {
             text: "Your generated image result:",
             images: ["data:image/png;base64," + data.image], // base64 output
           },
+          generationTime: duration, // pass generation time to result page
         },
       });
     } catch (err) {
       console.error("API error:", err);
       setApiError(err.message || "Something went wrong.");
+      
+      // Track failed generation
+      const duration = Date.now() - startTime;
+      trackGenerationComplete(userId, duration, false);
+      trackError('generation_error', err.message, userId);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { trackUserLogin, trackUserSignup } from '../utils/analytics';
 import "bootstrap/dist/css/bootstrap.css";
 
 export default function SignInPage() {
@@ -57,6 +58,9 @@ export default function SignInPage() {
       // success: backend returns a token and user info
       const username = result.user?.username || newUsername;
       login(username, result.token);
+      
+      // Track signup
+      trackUserSignup(newEmail, 'email');
 
       // Auto-fill the login form
       setEmail(newEmail);
@@ -91,6 +95,9 @@ export default function SignInPage() {
       // Save token + user into context
       const username = result.user?.username || email.split('@')[0];
       login(username, result.token);
+      
+      // Track login
+      trackUserLogin(email, 'email');
 
       // Move to selectimage
       navigate("/selectimage");

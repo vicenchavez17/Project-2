@@ -3,6 +3,7 @@ import { logHttpRequest, logError } from '../services/logger.js';
 /**
  * Middleware to log all HTTP requests and responses
  * Captures method, path, status code, duration, and user info
+ * Static assets are logged at DEBUG level to reduce noise
  */
 export function requestLogger(req, res, next) {
   const startTime = Date.now();
@@ -17,14 +18,20 @@ export function requestLogger(req, res, next) {
     // Extract user info from JWT token if available
     const userId = req.user?.email || 'anonymous';
     
-    // Log the request
-    logHttpRequest(req.method, req.path, res.statusCode, {
-      userId,
-      duration,
-      userAgent: req.get('user-agent'),
-      ip: req.ip || req.connection.remoteAddress,
-      query: Object.keys(req.query).length > 0 ? req.query : undefined,
-    });
+    // Check if request is for static assets
+    const isStaticAsset = /\.(js|css|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp)$/i.test(req.path) ||
+                          req.path.startsWith('/static/');
+    
+    // Log the request (skip static assets at INFO level)
+    if (!isStaticAsset) {
+      logHttpRequest(req.method, req.path, res.statusCode, {
+        userId,
+        duration,
+        userAgent: req.get('user-agent'),
+        ip: req.ip || req.connection.remoteAddress,
+        query: Object.keys(req.query).length > 0 ? req.query : undefined,
+      });
+    }
     
     // Call original end function
     originalEnd.apply(res, args);

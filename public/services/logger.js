@@ -22,13 +22,15 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
-// Create logger instance
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  defaultMeta: { service: 'apparel-recommendation-service' },
-  transports: [
-    // Console logging for development
+// Build transports array based on environment
+const transports = [
+  // Cloud Logging for production
+  loggingWinston,
+];
+
+// Only add console logging for local development (not in App Engine)
+if (!process.env.GAE_ENV) {
+  transports.push(
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
@@ -40,10 +42,16 @@ const logger = winston.createLogger({
           return msg;
         })
       ),
-    }),
-    // Cloud Logging for production
-    loggingWinston,
-  ],
+    })
+  );
+}
+
+// Create logger instance
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: logFormat,
+  defaultMeta: { service: 'apparel-recommendation-service' },
+  transports,
 });
 
 /**

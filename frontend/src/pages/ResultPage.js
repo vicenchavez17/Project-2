@@ -1,12 +1,19 @@
 // src/pages/ResultPage.js
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import { 
+  trackShoppingLinkView, 
+  trackShoppingLinkClick, 
+  trackAddToCloset 
+} from '../utils/analytics';
 
 const MAIN_COLOR = "#fe5163";
 
 export default function ResultPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [addedToCloset, setAddedToCloset] = useState(false);
 
   // Expecting location.state = { image: <dataUrl or url>, prompt: "...", shoppingLinks: [...], results: { text: "...", images: [url,...] } }
@@ -14,6 +21,15 @@ export default function ResultPage() {
   const originalImage = location.state?.image || null;
   const prompt = location.state?.prompt || "No prompt provided.";
   const shoppingLinks = location.state?.shoppingLinks || [];
+  const generationTime = location.state?.generationTime || null;
+  
+  // Track shopping link views
+  useEffect(() => {
+    if (shoppingLinks.length > 0) {
+      const userId = user?.email || 'anonymous';
+      trackShoppingLinkView(userId, shoppingLinks.length);
+    }
+  }, [shoppingLinks, user]);
   const results = location.state?.results || {
     text:
       "This is placeholder response text from the API. When your backend is ready this will show the returned paragraph describing the results.",
@@ -32,6 +48,10 @@ export default function ResultPage() {
     console.log("Adding to closet:", resultImages[0]);
     setAddedToCloset(true);
     setTimeout(() => setAddedToCloset(false), 2000);
+    
+    // Track add to closet
+    const userId = user?.email || 'anonymous';
+    trackAddToCloset(userId);
   };
 
   const handleGoToCloset = () => {
@@ -447,6 +467,10 @@ export default function ResultPage() {
                               href={link.url}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => {
+                                const userId = user?.email || 'anonymous';
+                                trackShoppingLinkClick(userId, link.url, idx);
+                              }}
                               style={{
                                 color: MAIN_COLOR,
                                 textDecoration: "none",
